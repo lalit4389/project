@@ -80,10 +80,7 @@ const ForgotPassword: React.FC = () => {
     }
 
   };
-
-  // Handle form submission based on step
-  const handleStepSubmit = (data: any) => { // Use any for now as form data type changes
-    } finally {
+ finally {
       setIsLoading(false);
     }
   };
