@@ -10,11 +10,15 @@ interface VerifyOtpForm {
   otp: string;
 }
 
+interface LocationState {
+  identifier?: string;
+}
+
 const VerifyOtpResetPassword: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const identifier = location.state?.identifier; // Get identifier from state passed during navigation
+  const { identifier } = location.state as LocationState || {}; // Get identifier from state passed during navigation
 
   const { register, handleSubmit, formState: { errors } } = useForm<VerifyOtpForm>();
 

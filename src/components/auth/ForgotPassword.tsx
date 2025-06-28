@@ -38,8 +38,13 @@ const ForgotPassword: React.FC = () => {
     clearErrors(['email', 'mobileNumber']);
 
     setIsLoading(true);
+
+    // Construct the data object with 'identifier' property
+    const forgotPasswordData = {
+      identifier: data.mobileNumber || data.email || '', // Prioritize mobile number if both are provided
+    };
     try {
-      const response = await authAPI.forgotPassword(data);
+      const response = await authAPI.forgotPassword(forgotPasswordData);
       toast.success(response.data.message || 'If a matching account was found, an OTP has been sent.');
       setRequestSent(true);
       setIdentifier(data.email || data.mobileNumber || ''); // Store the identifier for the next step
