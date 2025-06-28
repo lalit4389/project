@@ -9,6 +9,9 @@ import Register from './components/auth/Register';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import Overview from './components/dashboard/Overview';
 import Orders from './components/dashboard/Orders';
+import ForgotPassword from './components/auth/ForgotPassword';
+import VerifyOtpResetPassword from './components/auth/VerifyOtpResetPassword';
+import ResetPassword from './components/auth/ResetPassword';
 import PnL from './components/dashboard/PnL';
 import BrokerConnection from './components/dashboard/BrokerConnection';
 import { isAuthenticated } from './utils/auth';
@@ -37,6 +40,9 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/verify-otp-reset" element={<VerifyOtpResetPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route
               path="/dashboard"
               element={
