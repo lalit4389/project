@@ -38,6 +38,7 @@ export const initDatabase = async () => {
       CREATE TABLE IF NOT EXISTS otps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         identifier TEXT NOT NULL, -- Can be email or mobile number
+        type TEXT NOT NULL, -- 'email' or 'mobile'
         otp TEXT NOT NULL,
         expires_at INTEGER NOT NULL -- Unix timestamp
 ,

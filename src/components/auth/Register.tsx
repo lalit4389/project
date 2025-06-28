@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 interface RegisterForm {
   name: string;
   email: string;
-  password: string;
+  password?: string;
   confirmPassword: string;
   mobileNumber: string;
 };
@@ -31,8 +31,13 @@ const Register: React.FC = () => {
   const onSubmit = async (data: RegisterForm) => {
      setIsLoading(true);
     try {
+      if (!data.email && !data.mobileNumber) {
+        toast.error('Please provide either an email or a mobile number.');
+        setIsLoading(false);
+        return;
+      }
+
       const response = await authAPI.register(data);
-      // Assuming the backend sends back the identifier (email or mobile) that needs OTP verification
       localStorage.setItem('authToken', response.data.token);
       setRegistrationSuccess(true);
       setShowOtpForm(true);
@@ -175,13 +180,13 @@ const Register: React.FC = () => {
                     <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
                     <input
                       {...register('mobileNumber', {
-                        required: 'Mobile number is required',
+                        // required: 'Mobile number is required', // Make optional as email can be used
                         minLength: {
                           value: 10,
                           message: 'Please enter a valid mobile number'
                         }
                       })}
-                      type="tel" // Use type="tel" for mobile numbers
+                      type="tel"
                       className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
                       placeholder="Enter your mobile number"
                     />
@@ -197,7 +202,7 @@ const Register: React.FC = () => {
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
-                    <input
+                   <input
                       {...register('email', {
                         required: 'Email is required',
                         pattern: {
@@ -223,7 +228,7 @@ const Register: React.FC = () => {
                     <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
                     <input
                       {...register('password', {
-                        required: 'Password is required',
+                        required: 'Password is required', // Keep password required for initial registration
                         minLength: {
                           value: 6,
                           message: 'Password must be at least 6 characters'
@@ -278,7 +283,7 @@ const Register: React.FC = () => {
                   <input
                     type="checkbox"
                     className="w-4 h-4 text-olive-600 bg-dark-800/30 border-olive-500/20 rounded focus:ring-olive-500 mt-1"
-                    required
+                    required // Still require agreement to terms
                   />
                   <label className="ml-2 text-sm text-olive-200/70">
                     I agree to the
