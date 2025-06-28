@@ -37,6 +37,9 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   getProfile: () => api.get('/auth/me'),
   verifyOtp: ({ identifier, otp }) => api.post('/auth/verify-otp', { identifier, otp }),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  verifyOtpResetPassword: ({ identifier, otp }) => api.post('/auth/verify-otp', { identifier, otp }), // Reuse verify-otp endpoint
+  resetPassword: ({ identifier, otp, newPassword }) => api.post('/auth/reset-password', { identifier, otp, newPassword }),
 };
 
 // Broker API

@@ -51,19 +51,19 @@ router.post('/register', async (req, res) => {
     const otp = crypto.randomInt(100000, 999999).toString();
     const expiresAt = Math.floor(Date.now() / 1000) + (5 * 60); // 5 minutes from now in seconds
 
+    let otpType;
     if (email) {
+ otpType = 'email';
       // TODO: Add code here to send OTP via email
-      // Store OTP in the database with type 'email'
-      await db.runAsync(
-        'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
-        [normalizedEmail, 'email', otp, expiresAt, Math.floor(Date.now() / 1000)]
-      );
     } else if (mobileNumber) {
+ otpType = 'mobile';
       // TODO: Add code here to send OTP via SMS using a service like Twilio
+    }
+
     // Store OTP in the database
     await db.runAsync(
- 'INSERT INTO otps (identifier, otp, expires_at, created_at) VALUES (?, ?, ?, ?)',
- [mobileNumber, otp, expiresAt, Math.floor(Date.now() / 1000)]
+ 'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
+ [identifier, otpType, otp, expiresAt, Math.floor(Date.now() / 1000)]
  );
 
     // Generate JWT token
@@ -143,7 +143,7 @@ router.post('/login', async (req, res) => {
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Wrong password' });
     }
 
     // Generate JWT token
@@ -164,9 +164,91 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// RESET PASSWORD - Verify OTP and Set New Password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { identifier, otp, newPassword } = req.body;
+
+    if (!identifier || !otp || !newPassword) {
+      return res.status(400).json({ error: 'Identifier, OTP, and new password are required' });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // Find a matching and unexpired OTP
+    const otpRecord = await db.getAsync(
+      'SELECT id, identifier FROM otps WHERE identifier = ? AND otp = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+      [identifier, otp, now]
+    );
+
+    if (!otpRecord) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update the user's password
+    await db.runAsync(
+      'UPDATE users SET password = ? WHERE email = ? OR mobileNumber = ?',
+      [hashedPassword, otpRecord.identifier, otpRecord.identifier]
+    );
+
+    // Delete the OTP record to prevent reuse
+    await db.runAsync('DELETE FROM otps WHERE id = ?', [otpRecord.id]);
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Password reset failed' });
+  }
+});
+
 // GET CURRENT USER
 router.get('/me', authenticateToken, (req, res) => {
   res.json({ user: req.user });
+});
+
+// FORGOT PASSWORD - Initiate
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { identifier } = req.body;
+
+    if (!identifier) {
+      return res.status(400).json({ error: 'Email or mobile number is required' });
+    }
+
+    // Find user by email or mobile number
+    const user = await db.getAsync(
+      'SELECT id, email, mobileNumber FROM users WHERE email = ? OR mobileNumber = ?',
+      [identifier, identifier]
+    );
+
+    // Do NOT reveal if the user exists for security reasons
+    if (!user) {
+      console.log(`Forgot password attempt for unknown identifier: ${identifier}`);
+      return res.json({ message: 'If a matching account is found, an OTP has been sent.' });
+    }
+
+    // Generate a 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = Math.floor(Date.now() / 1000) + (10 * 60); // 10 minutes from now
+
+    const otpType = user.email === identifier ? 'email' : 'mobile';
+
+    // Store OTP in the database
+    await db.runAsync(
+      'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
+      [identifier, otpType, otp, expiresAt, Math.floor(Date.now() / 1000)]
+    );
+
+    // TODO: Add code here to send OTP via email (if otpType is 'email') or SMS (if otpType is 'mobile')
+
+    res.json({ message: 'If a matching account is found, an OTP has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Forgot password request failed' });
+  }
 });
 
 export default router;
