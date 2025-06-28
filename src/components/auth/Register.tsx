@@ -18,9 +18,9 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [showOtpForm, setShowOtpForm] = useState(false);
   const [otp, setOtp] = useState('');
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [userIdentifier, setUserIdentifier] = useState(''); // To store email or mobile for OTP verification
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>();
@@ -34,7 +34,6 @@ const Register: React.FC = () => {
       const response = await authAPI.register(data);
       // Assuming the backend sends back the identifier (email or mobile) that needs OTP verification
       localStorage.setItem('authToken', response.data.token);
-      toast.success('Registration successful!');
       setRegistrationSuccess(true);
       setShowOtpForm(true);
       setUserIdentifier(data.email || data.mobileNumber); // Use email or mobile as identifier
@@ -60,7 +59,7 @@ const Register: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-950 via-olive-950 to-dark-900 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-      {/* Enhanced 3D Background */}
+      {/* Background Spheres */}
       <div className="absolute inset-0 perspective-2000">
         <motion.div
           initial={{ rotateX: 0, rotateY: 0, scale: 1 }}
@@ -132,169 +131,222 @@ const Register: React.FC = () => {
             <p className="text-olive-200/70">Create your account and start trading smarter</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-olive-200/90 mb-2">
-                Full Name
-              </label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
-                <input
-                  {...register('name', { 
-                    required: 'Name is required',
-                    minLength: {
-                      value: 2,
-                      message: 'Name must be at least 2 characters'
-                    }
-                  })}
-                  type="text"
-                  className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
-                  placeholder="Enter your full name"
-                />
-              </div>
-              {errors.name && (
-                <p className="mt-2 text-sm text-red-400">{errors.name.message}</p>
-              )}
-            </div>
+          <AnimatePresence mode="wait">
+            {!showOtpForm ? (
+              <motion.form
+                key="registration-form"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                onSubmit={handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
+                <div>
+                  <label className="block text-sm font-medium text-olive-200/90 mb-2">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
+                    <input
+                      {...register('name', {
+                        required: 'Name is required',
+                        minLength: {
+                          value: 2,
+                          message: 'Name must be at least 2 characters'
+                        }
+                      })}
+                      type="text"
+                      className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+                  {errors.name && (
+                    <p className="mt-2 text-sm text-red-400">{errors.name.message}</p>
+                  )}
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-olive-200/90 mb-2">
-                Mobile Number
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
-                <input
-                  {...register('mobileNumber', { 
-                    required: 'Mobile number is required',
-                    minLength: {
-                      value: 10,
-                      message: 'Please enter a valid mobile number'
-                    }
-                  })}
-                  type="tel" // Use type="tel" for mobile numbers
-                  className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
-                  placeholder="Enter your mobile number"
-                />
-              </div>
-              {errors.mobileNumber && (
-                <p className="mt-2 text-sm text-red-400">{errors.mobileNumber.message}</p>
-              )}
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-olive-200/90 mb-2">
+                    Mobile Number
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
+                    <input
+                      {...register('mobileNumber', {
+                        required: 'Mobile number is required',
+                        minLength: {
+                          value: 10,
+                          message: 'Please enter a valid mobile number'
+                        }
+                      })}
+                      type="tel" // Use type="tel" for mobile numbers
+                      className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
+                      placeholder="Enter your mobile number"
+                    />
+                  </div>
+                  {errors.mobileNumber && (
+                    <p className="mt-2 text-sm text-red-400">{errors.mobileNumber.message}</p>
+                  )}
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-olive-200/90 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
-                <input
-                  {...register('email', { 
-                    required: 'Email is required',
-                    pattern: {
-                      value: /^\S+@\S+$/i,
-                      message: 'Please enter a valid email'
-                    }
-                  })}
-                  type="email"
-                  className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
-                  placeholder="Enter your email"
-                />
-              </div>
-              {errors.email && (
-                <p className="mt-2 text-sm text-red-400">{errors.email.message}</p>
-              )}
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-olive-200/90 mb-2">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
+                    <input
+                      {...register('email', {
+                        required: 'Email is required',
+                        pattern: {
+                          value: /^\S+@\S+$/i,
+                          message: 'Please enter a valid email'
+                        }
+                      })}
+                      type="email"
+                      className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="mt-2 text-sm text-red-400">{errors.email.message}</p>
+                  )}
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-olive-200/90 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
-                <input
-                  {...register('password', { 
-                    required: 'Password is required',
-                    minLength: {
-                      value: 6,
-                      message: 'Password must be at least 6 characters'
-                    }
-                  })}
-                  type={showPassword ? 'text' : 'password'}
-                  className="w-full pl-12 pr-14 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
-                  placeholder="Create a password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-olive-400/50 hover:text-olive-300/70 transition-colors"
+                <div>
+                  <label className="block text-sm font-medium text-olive-200/90 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
+                    <input
+                      {...register('password', {
+                        required: 'Password is required',
+                        minLength: {
+                          value: 6,
+                          message: 'Password must be at least 6 characters'
+                        }
+                      })}
+                      type={showPassword ? 'text' : 'password'}
+                      className="w-full pl-12 pr-14 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
+                      placeholder="Create a password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-olive-400/50 hover:text-olive-300/70 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <p className="mt-2 text-sm text-red-400">{errors.password.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-olive-200/90 mb-2">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
+                    <input
+                      {...register('confirmPassword', {
+                        required: 'Please confirm your password',
+                        validate: value => value === password || 'Passwords do not match'
+                      })}
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      className="w-full pl-12 pr-14 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
+                      placeholder="Confirm your password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-olive-400/50 hover:text-olive-300/70 transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && (
+                    <p className="mt-2 text-sm text-red-400">{errors.confirmPassword.message}</p>
+                  )}
+                </div>
+
+                <div className="flex items-start">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-olive-600 bg-dark-800/30 border-olive-500/20 rounded focus:ring-olive-500 mt-1"
+                    required
+                  />
+                  <label className="ml-2 text-sm text-olive-200/70">
+                    I agree to the
+                    <Link to="/terms" className="text-olive-400 hover:text-olive-300 transition-colors">
+                      Terms of Service
+                    </Link>{' '}
+                    and
+                    <Link to="/privacy" className="text-olive-400 hover:text-olive-300 transition-colors">
+                      Privacy Policy
+                    </Link>
+                  </label>
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.02, rotateX: 5 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-olive-600 to-olive-700 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    boxShadow: '0 10px 25px rgba(138, 156, 112, 0.3)'
+                  }}
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-2 text-sm text-red-400">{errors.password.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-olive-200/90 mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
-                <input
-                  {...register('confirmPassword', { 
-                    required: 'Please confirm your password',
-                    validate: value => value === password || 'Passwords do not match'
-                  })}
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  className="w-full pl-12 pr-14 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
-                  placeholder="Confirm your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-olive-400/50 hover:text-olive-300/70 transition-colors"
+                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                </motion.button>
+              </motion.form>
+            ) : (
+              <motion.div
+                key="otp-verification-form"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                className="space-y-6"
+              >
+                <h3 className="text-2xl font-bold text-white text-center">Verify Mobile Number</h3>
+                <p className="text-olive-200/70 text-center">An OTP has been sent to {userIdentifier}. Please enter it below.</p>
+                <div>
+                  <label className="block text-sm font-medium text-olive-200/90 mb-2">
+                    OTP Code
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
+                    <input
+                      type="text"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
+                      placeholder="Enter OTP"
+                      required
+                    />
+                  </div>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02, rotateX: 5 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleOtpSubmit}
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-olive-600 to-olive-700 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    boxShadow: '0 10px 25px rgba(138, 156, 112, 0.3)'
+                  }}
                 >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              {errors.confirmPassword && (
-                <p className="mt-2 text-sm text-red-400">{errors.confirmPassword.message}</p>
-              )}
-            </div>
-
-            <div className="flex items-start">
-              <input
-                type="checkbox"
-                className="w-4 h-4 text-olive-600 bg-dark-800/30 border-olive-500/20 rounded focus:ring-olive-500 mt-1"
-                required
-              />
-              <label className="ml-2 text-sm text-olive-200/70">
-                I agree to the{' '}
-                <Link to="/terms" className="text-olive-400 hover:text-olive-300 transition-colors">
-                  Terms of Service
-                </Link>{' '}
-                and{' '}
-                <Link to="/privacy" className="text-olive-400 hover:text-olive-300 transition-colors">
-                  Privacy Policy
-                </Link>
-              </label>
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02, rotateX: 5 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-olive-600 to-olive-700 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ 
-                boxShadow: '0 10px 25px rgba(138, 156, 112, 0.3)'
-              }}
-            >
-              {isLoading ? 'Creating Account...' : 'Create Account'}
-            </motion.button>
-          </form>
+                  {isLoading ? 'Verifying...' : 'Verify OTP'}
+                </motion.button>
+                {/* You can add a Resend OTP button here */}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="mt-8 text-center">
             <p className="text-olive-200/70">

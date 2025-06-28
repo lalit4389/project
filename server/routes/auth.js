@@ -41,6 +41,16 @@ router.post('/register', async (req, res) => {
       [normalizedEmail, hashedPassword, name, mobileNumber]
     );
 
+    // Generate a 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = Math.floor(Date.now() / 1000) + (5 * 60); // 5 minutes from now in seconds
+
+    // Store OTP in the database
+    await db.runAsync(
+ 'INSERT INTO otps (identifier, otp, expires_at, created_at) VALUES (?, ?, ?, ?)',
+ [mobileNumber, otp, expiresAt, Math.floor(Date.now() / 1000)]
+ );
+
     // Generate JWT token
     const token = jwt.sign({ userId: result.lastID }, JWT_SECRET, { expiresIn: '24h' });
 
@@ -61,36 +71,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// SEND OTP
-router.post('/send-otp', async (req, res) => {
-  try {
-    const { email, mobileNumber } = req.body;
-
-    if (!email && !mobileNumber) {
-      return res.status(400).json({ error: 'Email or mobile number is required' });
-    }
-
-    // Generate a 6-digit OTP
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes from now
-
-    // Store OTP in the database
-    await db.runAsync(
-      'INSERT INTO otps (email, mobileNumber, otp_code, expires_at) VALUES (?, ?, ?, ?)',
-      [email || null, mobileNumber || null, otp, expiresAt]
-    );
-
-    // TODO: Implement SMS sending logic here using an SMS gateway service
-    console.log(`Generated OTP: ${otp} for ${email || mobileNumber}`); // Log for now
-
-    res.json({ message: 'OTP sent successfully' });
-
-  } catch (error) {
-    console.error('Send OTP error:', error);
-    res.status(500).json({ error: 'Failed to send OTP' });
-  }
-});
-
 // VERIFY OTP
 router.post('/verify-otp', async (req, res) => {
   try {
@@ -100,11 +80,11 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ error: 'Identifier and OTP are required' });
     }
 
-    const now = new Date().toISOString();
+    const now = Math.floor(Date.now() / 1000);
 
     // Find a matching and unexpired OTP
     const otpRecord = await db.getAsync(
-      'SELECT id FROM otps WHERE (email = ? OR mobileNumber = ?) AND otp_code = ? AND expires_at > ?',
+      'SELECT id FROM otps WHERE identifier = ? AND otp = ? AND expires_at > ?',
       [identifier, identifier, otp, now]
     );
 
