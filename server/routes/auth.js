@@ -12,10 +12,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, mobileNumber } = req.body;
- 
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: 'All fields are required' });
-    }
 
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -28,22 +24,38 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    if (!mobileNumber) {
-      return res.status(400).json({ error: 'Mobile number is required' });
+    let identifier;
+    if (email) {
+      identifier = normalizedEmail;
+    } else if (mobileNumber) {
+      identifier = mobileNumber;
+    } else {
+      return res.status(400).json({ error: 'Email or mobile number is required' });
     }
+
+    if (!password || !name) {
+ return res.status(400).json({ error: 'Password and name are required' });
+    }
+
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Insert user
     const result = await db.runAsync(
-      'INSERT INTO users (email, password, name, mobileNumber) VALUES (?, ?, ?, ?)',
-      [normalizedEmail, hashedPassword, name, mobileNumber]
+      'INSERT INTO users (email, password, name, mobileNumber) VALUES (?, ?, ? ,?)',
+ [email ? normalizedEmail : null, hashedPassword, name, mobileNumber ? mobileNumber : null]
     );
 
     // Generate a 6-digit OTP
     const otp = crypto.randomInt(100000, 999999).toString();
     const expiresAt = Math.floor(Date.now() / 1000) + (5 * 60); // 5 minutes from now in seconds
+
+    if (email) {
+ // TODO: Add code here to send OTP via email
+    } else if (mobileNumber) {
+ // TODO: Add code here to send OTP via SMS using a service like Twilio
+    }
 
     // Store OTP in the database
     await db.runAsync(
@@ -62,7 +74,7 @@ router.post('/register', async (req, res) => {
         id: result.lastID,
         email: normalizedEmail,
  name: name,
- mobileNumber: mobileNumber,
+ mobileNumber: mobileNumber
       },
     });
   } catch (error) {
@@ -84,8 +96,8 @@ router.post('/verify-otp', async (req, res) => {
 
     // Find a matching and unexpired OTP
     const otpRecord = await db.getAsync(
-      'SELECT id FROM otps WHERE identifier = ? AND otp = ? AND expires_at > ?',
-      [identifier, identifier, otp, now]
+      'SELECT id FROM otps WHERE identifier = ? AND otp = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+      [identifier, otp, now]
     );
 
     if (!otpRecord) {
