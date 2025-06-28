@@ -51,23 +51,21 @@ router.post('/register', async (req, res) => {
     const otp = crypto.randomInt(100000, 999999).toString();
     const expiresAt = Math.floor(Date.now() / 1000) + (5 * 60); // 5 minutes from now in seconds
 
-    let otpType;
+    const otpType = email ? 'email' : 'mobile';
+
     if (email) {
- otpType = 'email';
       // TODO: Add code here to send OTP via email
     } else if (mobileNumber) {
- otpType = 'mobile';
       // TODO: Add code here to send OTP via SMS using a service like Twilio
     }
 
     // Store OTP in the database
     await db.runAsync(
- 'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
- [identifier, otpType, otp, expiresAt, Math.floor(Date.now() / 1000)]
+      'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
+      [identifier, otpType, otp, expiresAt, Math.floor(Date.now() / 1000)]
  );
-
+    
     // Generate JWT token
-    }
     const token = jwt.sign({ userId: result.lastID }, JWT_SECRET, { expiresIn: '24h' });
 
     res.setHeader('Access-Control-Allow-Origin', '*'); // Temporary for debugging
