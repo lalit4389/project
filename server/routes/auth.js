@@ -52,11 +52,14 @@ router.post('/register', async (req, res) => {
     const expiresAt = Math.floor(Date.now() / 1000) + (5 * 60); // 5 minutes from now in seconds
 
     if (email) {
- // TODO: Add code here to send OTP via email
+      // TODO: Add code here to send OTP via email
+      // Store OTP in the database with type 'email'
+      await db.runAsync(
+        'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
+        [normalizedEmail, 'email', otp, expiresAt, Math.floor(Date.now() / 1000)]
+      );
     } else if (mobileNumber) {
- // TODO: Add code here to send OTP via SMS using a service like Twilio
-    }
-
+      // TODO: Add code here to send OTP via SMS using a service like Twilio
     // Store OTP in the database
     await db.runAsync(
  'INSERT INTO otps (identifier, otp, expires_at, created_at) VALUES (?, ?, ?, ?)',
@@ -64,6 +67,7 @@ router.post('/register', async (req, res) => {
  );
 
     // Generate JWT token
+    }
     const token = jwt.sign({ userId: result.lastID }, JWT_SECRET, { expiresIn: '24h' });
 
     res.setHeader('Access-Control-Allow-Origin', '*'); // Temporary for debugging
