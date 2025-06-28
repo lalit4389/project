@@ -47,6 +47,7 @@ const Register: React.FC = () => {
   const handleOtpSubmit = async () => {
     setIsLoading(true);
     try {
+      console.log('User Identifier:', userIdentifier, 'OTP:', otp);
       const response = await authAPI.verifyOtp({ identifier: userIdentifier, otp });
       toast.success(response.data.message);
       navigate('/dashboard'); // Navigate after successful OTP verification
