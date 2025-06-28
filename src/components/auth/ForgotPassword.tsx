@@ -80,10 +80,6 @@ const ForgotPassword: React.FC = () => {
     }
 
   };
- finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-950 via-olive-950 to-dark-900 flex items-center justify-center px-4 sm:px-6 lg:px-8">
