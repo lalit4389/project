@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff, TrendingUp, Phone } from 'lucide-react';
@@ -17,21 +17,42 @@ interface RegisterForm {
 const Register: React.FC = () => {
   const [showPassword, setShowPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [showOtpForm, setShowOtpForm] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [userIdentifier, setUserIdentifier] = useState(''); // To store email or mobile for OTP verification
+
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>();
   const navigate = useNavigate();
-  
+
   const password = watch('password');
 
   const onSubmit = async (data: RegisterForm) => {
      setIsLoading(true);
     try {
       const response = await authAPI.register(data);
+      // Assuming the backend sends back the identifier (email or mobile) that needs OTP verification
       localStorage.setItem('authToken', response.data.token);
       toast.success('Registration successful!');
-      navigate('/dashboard');
+      setRegistrationSuccess(true);
+      setShowOtpForm(true);
+      setUserIdentifier(data.email || data.mobileNumber); // Use email or mobile as identifier
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Registration failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async () => {
+    setIsLoading(true);
+    try {
+      const response = await authAPI.verifyOtp({ identifier: userIdentifier, otp });
+      toast.success(response.data.message);
+      navigate('/dashboard'); // Navigate after successful OTP verification
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'OTP verification failed');
     } finally {
       setIsLoading(false);
     }
@@ -42,6 +63,9 @@ const Register: React.FC = () => {
       {/* Enhanced 3D Background */}
       <div className="absolute inset-0 perspective-2000">
         <motion.div
+          initial={{ rotateX: 0, rotateY: 0, scale: 1 }}
+          // Added key for proper re-animation on prop changes if needed
+          key="bg-sphere-1" 
           animate={{
             rotateX: [0, 360],
             rotateY: [0, 180],
@@ -55,6 +79,8 @@ const Register: React.FC = () => {
           className="absolute top-1/4 left-1/4 w-72 h-72 bg-olive-500/10 rounded-full blur-3xl"
         />
         <motion.div
+          initial={{ rotateY: 0, rotateZ: 0, scale: 1 }}
+          key="bg-sphere-2"
           animate={{
             rotateY: [0, -360],
             rotateZ: [0, 180],
@@ -75,6 +101,7 @@ const Register: React.FC = () => {
         animate={{ opacity: 1, y: 0, rotateX: 0 }}
         transition={{ duration: 0.8 }}
         className="relative z-10 max-w-md w-full space-y-8"
+        key="register-form-container"
         style={{ perspective: '1000px' }}
       >
         <motion.div
@@ -83,6 +110,7 @@ const Register: React.FC = () => {
             rotateY: 2,
             rotateX: 2,
           }}
+          key="register-form-card"
           className="bg-dark-800/20 backdrop-blur-xl rounded-3xl p-8 border border-olive-500/20 shadow-2xl"
           style={{ 
             transformStyle: 'preserve-3d',
@@ -92,6 +120,7 @@ const Register: React.FC = () => {
           <div className="text-center mb-8">
             <motion.div 
               className="flex justify-center mb-6"
+              key="logo-animation"
               whileHover={{ rotateY: 180 }}
               transition={{ duration: 0.6 }}
             >

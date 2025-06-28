@@ -33,6 +33,17 @@ export const initDatabase = async () => {
       )
     `);
 
+    // OTPs table to store verification codes
+    await db.runAsync(`
+      CREATE TABLE IF NOT EXISTS otps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        identifier TEXT NOT NULL, -- Can be email or mobile number
+        otp TEXT NOT NULL,
+        expires_at INTEGER NOT NULL -- Unix timestamp
+      )
+    `);
+
+
     // Broker connections table
     await db.runAsync(`
       CREATE TABLE IF NOT EXISTS broker_connections (

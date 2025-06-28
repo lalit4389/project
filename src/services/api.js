@@ -36,6 +36,7 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getProfile: () => api.get('/auth/me'),
+  verifyOtp: (identifier, otp) => api.post('/auth/verify-otp', { identifier, otp }),
 };
 
 // Broker API
