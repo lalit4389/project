@@ -40,7 +40,8 @@ export const initDatabase = async () => {
         identifier TEXT NOT NULL, -- Can be email or mobile number
         otp TEXT NOT NULL,
         expires_at INTEGER NOT NULL -- Unix timestamp
-      )
+ ,
+        created_at INTEGER NOT NULL
     `);
 
 
