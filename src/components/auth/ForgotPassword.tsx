@@ -11,6 +11,10 @@ interface ForgotPasswordForm {
   mobileNumber?: string;
 }
 
+interface VerifyOtpForm {
+  otp: string;
+}
+
 const ForgotPassword: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
@@ -23,10 +27,16 @@ const ForgotPassword: React.FC = () => {
     watch,
     setError,
     clearErrors,
-  } = useForm<ForgotPasswordForm>();
+    reset, // Add reset from useForm
+  } = useForm<ForgotPasswordForm | VerifyOtpForm>(); // Use a union type for the form data
+
   const navigate = useNavigate();
 
-  const emailValue = watch('email');
+  const [step, setStep] = useState(1); // 1: Enter identifier, 2: Enter OTP
+  const [otp, setOtp] = useState(''); // State for OTP input
+
+  // Use conditional watch based on the current step
+  const emailValue = step === 1 ? watch('email') : undefined;
   const mobileNumberValue = watch('mobileNumber');
 
   const onSubmit = async (data: ForgotPasswordForm) => {
@@ -36,22 +46,43 @@ const ForgotPassword: React.FC = () => {
       return;
     }
     clearErrors(['email', 'mobileNumber']);
+    setIdentifier(data.mobileNumber || data.email || ''); // Store identifier early
 
     setIsLoading(true);
 
-    // Construct the data object with 'identifier' property
-    const forgotPasswordData = {
-      identifier: data.mobileNumber || data.email || '', // Prioritize mobile number if both are provided
-    };
-    try {
-      const response = await authAPI.forgotPassword(forgotPasswordData);
-      toast.success(response.data.message || 'If a matching account was found, an OTP has been sent.');
-      setRequestSent(true);
-      setIdentifier(data.email || data.mobileNumber || ''); // Store the identifier for the next step
-      // Optionally navigate to the OTP verification page immediately:
-      // navigate('/verify-otp-reset', { state: { identifier: data.email || data.mobileNumber } });
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Could not initiate password reset. Please try again.');
+    if (step === 1) {
+      // Step 1: Send OTP
+      const forgotPasswordData = {
+        identifier: data.mobileNumber || data.email || '',
+      };
+      try {
+        const response = await authAPI.forgotPassword(forgotPasswordData);
+        toast.success(response.data.message || 'If a matching account was found, an OTP has been sent.');
+        setStep(2); // Move to OTP verification step
+        reset({ otp: '' }); // Reset the form for the next step
+      } catch (error: any) {
+        toast.error(error.response?.data?.error || 'Could not initiate password reset. Please try again.');
+      }
+    } else if (step === 2) {
+      // Step 2: Verify OTP
+      const verifyOtpData = {
+        identifier: identifier, // Use the stored identifier
+        otp: (data as VerifyOtpForm).otp, // Cast data to VerifyOtpForm to access otp
+      };
+      try {
+        const response = await authAPI.verifyOtp(verifyOtpData);
+        toast.success(response.data.message || 'OTP verified successfully.');
+        // Navigate to the reset password page
+        navigate('/reset-password', { state: { identifier: identifier } });
+      } catch (error: any) {
+        toast.error(error.response?.data?.error || 'OTP verification failed. Please try again.');
+      }
+    }
+
+  };
+
+  // Handle form submission based on step
+  const handleStepSubmit = (data: any) => { // Use any for now as form data type changes
     } finally {
       setIsLoading(false);
     }
@@ -80,8 +111,8 @@ const ForgotPassword: React.FC = () => {
             </p>
           </div>
 
-          {!requestSent ? (
-            <motion.form
+          {step === 1 && (
+             <motion.form
               key="forgot-password-form"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -153,6 +184,38 @@ const ForgotPassword: React.FC = () => {
               </motion.button>
             </motion.form>
           ) : (
+            <motion.form
+              key="verify-otp-form"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              onSubmit={handleSubmit(onSubmit)} // handleSubmit will call onSubmit with the current form data
+              className="space-y-6"
+            >
+               <div>
+                <label className="block text-sm font-medium text-olive-200/90 mb-2">
+                  Enter OTP
+                </label>
+                <div className="relative">
+                   <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
+                  <input
+                     {...register('otp', {
+                       required: 'OTP is required',
+                       minLength: { value: 6, message: 'OTP must be 6 digits' },
+                       maxLength: { value: 6, message: 'OTP must be 6 digits' },
+                     })}
+                    type="text"
+                    className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
+                    placeholder="Enter OTP"
+                  />
+                </div>
+                {errors.otp && <p className="mt-2 text-sm text-red-400">{errors.otp.message}</p>}
+              </div>
+
+              {/* Optional: Add a Resend OTP button */}
+              {/* ... (Add your Resend OTP button logic here) ... */}
+
             <motion.div
               key="otp-sent-message"
               initial={{ opacity: 0 }}
