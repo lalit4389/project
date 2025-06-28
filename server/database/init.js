@@ -41,7 +41,7 @@ export const initDatabase = async () => {
         otp TEXT NOT NULL,
         expires_at INTEGER NOT NULL -- Unix timestamp
 ,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL)
     `);
 
 
