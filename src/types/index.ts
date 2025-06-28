@@ -3,6 +3,7 @@ export interface User {
   email: string;
   name: string;
   createdAt: string;
+  mobileNumber?: string; // Added mobileNumber as an optional string
 }
 
 export interface BrokerConnection {

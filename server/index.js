@@ -13,26 +13,9 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-// ✅ Fix CORS issue: Allow all localhost ports in dev
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests from tools (no origin) like curl/postman
-    if (!origin) return callback(null, true);
-
-    // Allow all localhost ports (e.g., 5173, 5175)
-    const localhostRegex = /^http:\/\/localhost:\d+$/;
-    if (localhostRegex.test(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error(`CORS policy: Not allowed for origin ${origin}`), false);
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 204 // ✅ Required for some browser preflight quirks
-}));
-
 // Security headers
+app.use(cors());
+
 app.use(helmet());
 
 // Rate limiting

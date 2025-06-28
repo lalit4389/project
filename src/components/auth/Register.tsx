@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, TrendingUp } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, TrendingUp, Phone } from 'lucide-react';
 import { authAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -11,7 +11,8 @@ interface RegisterForm {
   email: string;
   password: string;
   confirmPassword: string;
-}
+  mobileNumber: string;
+};
 
 const Register: React.FC = () => {
   const [showPassword, setShowPassword] = React.useState(false);
@@ -23,7 +24,7 @@ const Register: React.FC = () => {
   const password = watch('password');
 
   const onSubmit = async (data: RegisterForm) => {
-    setIsLoading(true);
+     setIsLoading(true);
     try {
       const response = await authAPI.register(data);
       localStorage.setItem('authToken', response.data.token);
@@ -124,6 +125,30 @@ const Register: React.FC = () => {
               </div>
               {errors.name && (
                 <p className="mt-2 text-sm text-red-400">{errors.name.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-olive-200/90 mb-2">
+                Mobile Number
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
+                <input
+                  {...register('mobileNumber', { 
+                    required: 'Mobile number is required',
+                    minLength: {
+                      value: 10,
+                      message: 'Please enter a valid mobile number'
+                    }
+                  })}
+                  type="tel" // Use type="tel" for mobile numbers
+                  className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
+                  placeholder="Enter your mobile number"
+                />
+              </div>
+              {errors.mobileNumber && (
+                <p className="mt-2 text-sm text-red-400">{errors.mobileNumber.message}</p>
               )}
             </div>
 

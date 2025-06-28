@@ -10,8 +10,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 // REGISTER
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-
+    const { email, password, name, mobileNumber } = req.body;
+ 
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'All fields are required' });
     }
@@ -27,26 +27,32 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User already exists' });
     }
 
+    if (!mobileNumber) {
+      return res.status(400).json({ error: 'Mobile number is required' });
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Insert user
     const result = await db.runAsync(
-      'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
-      [normalizedEmail, hashedPassword, name]
+      'INSERT INTO users (email, password, name, mobileNumber) VALUES (?, ?, ?, ?)',
+      [normalizedEmail, hashedPassword, name, mobileNumber]
     );
 
     // Generate JWT token
     const token = jwt.sign({ userId: result.lastID }, JWT_SECRET, { expiresIn: '24h' });
 
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Temporary for debugging
     res.status(201).json({
       message: 'User created successfully',
       token,
       user: {
         id: result.lastID,
         email: normalizedEmail,
-        name
-      }
+ name: name,
+ mobileNumber: mobileNumber,
+      },
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -83,11 +89,11 @@ router.post('/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '24h' });
 
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Temporary for debugging
     res.json({
       message: 'Login successful',
       token,
-      user: {
-        id: user.id,
+ user: { id: user.id,
         email: user.email,
         name: user.name
       }
