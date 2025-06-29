@@ -33,6 +33,20 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Pending registrations table - stores user data before OTP verification
+    await db.runAsync(`
+      CREATE TABLE IF NOT EXISTS pending_registrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT,
+        password TEXT NOT NULL,
+        mobileNumber TEXT,
+        name TEXT NOT NULL,
+        identifier TEXT NOT NULL, -- email or mobile number used for OTP
+        created_at INTEGER NOT NULL, -- Unix timestamp
+        expires_at INTEGER NOT NULL -- Unix timestamp
+      )
+    `);
+
     // OTPs table to store verification codes
     await db.runAsync(`
       CREATE TABLE IF NOT EXISTS otps (
@@ -40,6 +54,7 @@ export const initDatabase = async () => {
         identifier TEXT NOT NULL, -- Can be email or mobile number
         type TEXT NOT NULL, -- 'email' or 'mobile'
         otp TEXT NOT NULL,
+        purpose TEXT NOT NULL DEFAULT 'registration', -- 'registration' or 'password_reset'
         expires_at INTEGER NOT NULL, -- Unix timestamp
         created_at INTEGER NOT NULL
       )

@@ -20,16 +20,40 @@ const Register: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showOtpForm, setShowOtpForm] = useState(false);
   const [otp, setOtp] = useState('');
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [userIdentifier, setUserIdentifier] = useState(''); // To store email or mobile for OTP verification
+  const [canResendOtp, setCanResendOtp] = useState(false);
+  const [resendTimer, setResendTimer] = useState(60);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>();
   const navigate = useNavigate();
 
   const password = watch('password');
 
+  // Timer for resend OTP
+  React.useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    
+    if (showOtpForm && resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            setCanResendOtp(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [showOtpForm, resendTimer]);
+
   const onSubmit = async (data: RegisterForm) => {
-     setIsLoading(true);
+    setIsLoading(true);
     try {
       if (!data.email && !data.mobileNumber) {
         toast.error('Please provide either an email or a mobile number.');
@@ -38,10 +62,19 @@ const Register: React.FC = () => {
       }
 
       const response = await authAPI.register(data);
-      localStorage.setItem('authToken', response.data.token);
-      setRegistrationSuccess(true);
-      setShowOtpForm(true);
-      setUserIdentifier(data.email || data.mobileNumber); // Use email or mobile as identifier
+      
+      if (response.data.requiresOTP) {
+        setShowOtpForm(true);
+        setUserIdentifier(response.data.identifier);
+        setResendTimer(60);
+        setCanResendOtp(false);
+        toast.success('OTP sent! Please check your email/SMS and enter the verification code.');
+      } else {
+        // Fallback for old flow (shouldn't happen with new implementation)
+        localStorage.setItem('authToken', response.data.token);
+        toast.success('Registration successful!');
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Registration failed');
     } finally {
@@ -50,14 +83,39 @@ const Register: React.FC = () => {
   };
 
   const handleOtpSubmit = async () => {
+    if (!otp || otp.length !== 6) {
+      toast.error('Please enter a valid 6-digit OTP');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      console.log('User Identifier:', userIdentifier, 'OTP:', otp);
       const response = await authAPI.verifyOtp({ identifier: userIdentifier, otp });
-      toast.success(response.data.message);
-      navigate('/dashboard'); // Navigate after successful OTP verification
+      
+      if (response.data.token) {
+        localStorage.setItem('authToken', response.data.token);
+        toast.success('Account created successfully!');
+        navigate('/dashboard');
+      } else {
+        toast.success(response.data.message);
+        navigate('/login');
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'OTP verification failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setIsLoading(true);
+    try {
+      await authAPI.resendOtp({ identifier: userIdentifier });
+      toast.success('OTP resent successfully!');
+      setResendTimer(60);
+      setCanResendOtp(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to resend OTP');
     } finally {
       setIsLoading(false);
     }
@@ -69,7 +127,6 @@ const Register: React.FC = () => {
       <div className="absolute inset-0 perspective-2000">
         <motion.div
           initial={{ rotateX: 0, rotateY: 0, scale: 1 }}
-          // Added key for proper re-animation on prop changes if needed
           key="bg-sphere-1" 
           animate={{
             rotateX: [0, 360],
@@ -180,7 +237,6 @@ const Register: React.FC = () => {
                     <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
                     <input
                       {...register('mobileNumber', {
-                        // required: 'Mobile number is required', // Make optional as email can be used
                         minLength: {
                           value: 10,
                           message: 'Please enter a valid mobile number'
@@ -228,7 +284,7 @@ const Register: React.FC = () => {
                     <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
                     <input
                       {...register('password', {
-                        required: 'Password is required', // Keep password required for initial registration
+                        required: 'Password is required',
                         minLength: {
                           value: 6,
                           message: 'Password must be at least 6 characters'
@@ -283,7 +339,7 @@ const Register: React.FC = () => {
                   <input
                     type="checkbox"
                     className="w-4 h-4 text-olive-600 bg-dark-800/30 border-olive-500/20 rounded focus:ring-olive-500 mt-1"
-                    required // Still require agreement to terms
+                    required
                   />
                   <label className="ml-2 text-sm text-olive-200/70">
                     I agree to the
@@ -319,37 +375,76 @@ const Register: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="space-y-6"
               >
-                <h3 className="text-2xl font-bold text-white text-center">Verify Mobile Number</h3>
-                <p className="text-olive-200/70 text-center">An OTP has been sent to {userIdentifier}. Please enter it below.</p>
+                <div className="text-center mb-6">
+                  <h3 className="text-2xl font-bold text-white">Verify Your Account</h3>
+                  <p className="text-olive-200/70 mt-2">
+                    We've sent a 6-digit verification code to
+                  </p>
+                  <p className="text-olive-300 font-medium">{userIdentifier}</p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-olive-200/90 mb-2">
-                    OTP Code
+                    Verification Code
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-olive-400/50" />
                     <input
                       type="text"
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm"
-                      placeholder="Enter OTP"
-                      required
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full pl-12 pr-4 py-4 bg-dark-800/30 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent transition-all backdrop-blur-sm text-center text-lg tracking-widest"
+                      placeholder="000000"
+                      maxLength={6}
                     />
                   </div>
                 </div>
+
                 <motion.button
                   whileHover={{ scale: 1.02, rotateX: 5 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleOtpSubmit}
-                  disabled={isLoading}
+                  disabled={isLoading || otp.length !== 6}
                   className="w-full bg-gradient-to-r from-olive-600 to-olive-700 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
                     boxShadow: '0 10px 25px rgba(138, 156, 112, 0.3)'
                   }}
                 >
-                  {isLoading ? 'Verifying...' : 'Verify OTP'}
+                  {isLoading ? 'Verifying...' : 'Verify & Create Account'}
                 </motion.button>
-                {/* You can add a Resend OTP button here */}
+
+                <div className="text-center">
+                  {canResendOtp ? (
+                    <motion.button
+                      type="button"
+                      onClick={handleResendOtp}
+                      disabled={isLoading}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="text-olive-400 hover:text-olive-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isLoading ? 'Sending...' : 'Resend OTP'}
+                    </motion.button>
+                  ) : (
+                    <p className="text-olive-200/70 text-sm">
+                      Resend OTP in {resendTimer} seconds
+                    </p>
+                  )}
+                </div>
+
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    setShowOtpForm(false);
+                    setOtp('');
+                    setUserIdentifier('');
+                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-dark-800/50 text-olive-200 py-3 rounded-xl font-medium hover:bg-dark-700/50 transition-all border border-olive-500/20"
+                >
+                  Back to Registration
+                </motion.button>
               </motion.div>
             )}
           </AnimatePresence>

@@ -9,20 +9,22 @@ import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// REGISTER
+// REGISTER - Step 1: Store pending registration and send OTP
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, mobileNumber } = req.body;
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = email ? email.trim().toLowerCase() : null;
 
-    // Check if user exists
-    const existingUser = await db.getAsync(
-      'SELECT id FROM users WHERE email = ?',
-      [normalizedEmail]
-    );
-    if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+    // Check if user already exists
+    if (normalizedEmail) {
+      const existingUser = await db.getAsync(
+        'SELECT id FROM users WHERE email = ?',
+        [normalizedEmail]
+      );
+      if (existingUser) {
+        return res.status(400).json({ error: 'User already exists' });
+      }
     }
 
     let identifier;
@@ -35,22 +37,36 @@ router.post('/register', async (req, res) => {
     }
 
     if (!password || !name) {
- return res.status(400).json({ error: 'Password and name are required' });
+      return res.status(400).json({ error: 'Password and name are required' });
     }
-
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user
-    const result = await db.runAsync(
-      'INSERT INTO users (email, password, name, mobileNumber) VALUES (?, ?, ? ,?)',
- [email ? normalizedEmail : null, hashedPassword, name, mobileNumber ? mobileNumber : null]
+    // Clean up any existing pending registrations for this identifier
+    await db.runAsync(
+      'DELETE FROM pending_registrations WHERE identifier = ?',
+      [identifier]
+    );
+
+    // Clean up any existing OTPs for this identifier
+    await db.runAsync(
+      'DELETE FROM otps WHERE identifier = ? AND purpose = ?',
+      [identifier, 'registration']
+    );
+
+    // Store pending registration
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = now + (30 * 60); // 30 minutes from now
+
+    await db.runAsync(
+      'INSERT INTO pending_registrations (email, password, name, mobileNumber, identifier, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [normalizedEmail, hashedPassword, name, mobileNumber || null, identifier, now, expiresAt]
     );
 
     // Generate a 6-digit OTP
     const otp = crypto.randomInt(100000, 999999).toString();
-    const expiresAt = Math.floor(Date.now() / 1000) + (5 * 60); // 5 minutes from now in seconds
+    const otpExpiresAt = Math.floor(Date.now() / 1000) + (10 * 60); // 10 minutes from now
 
     const otpType = email ? 'email' : 'mobile';
 
@@ -64,23 +80,14 @@ router.post('/register', async (req, res) => {
 
     // Store OTP in the database
     await db.runAsync(
-      'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
-      [identifier, otpType, otp, expiresAt, Math.floor(Date.now() / 1000)]
- );
-    
-    // Generate JWT token
-    const token = jwt.sign({ userId: result.lastID }, JWT_SECRET, { expiresIn: '24h' });
+      'INSERT INTO otps (identifier, type, otp, purpose, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [identifier, otpType, otp, 'registration', otpExpiresAt, now]
+    );
 
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Temporary for debugging
-    res.status(201).json({
-      message: 'User created successfully',
-      token,
-      user: {
-        id: result.lastID,
-        email: normalizedEmail,
- name: name,
- mobileNumber: mobileNumber
-      },
+    res.status(200).json({
+      message: 'Registration initiated. Please verify OTP to complete account creation.',
+      identifier: identifier,
+      requiresOTP: true
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -88,7 +95,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// VERIFY OTP
+// VERIFY OTP - Step 2: Complete registration after OTP verification
 router.post('/verify-otp', async (req, res) => {
   try {
     const { identifier, otp } = req.body;
@@ -99,23 +106,111 @@ router.post('/verify-otp', async (req, res) => {
 
     const now = Math.floor(Date.now() / 1000);
 
-    // Find a matching and unexpired OTP
+    // Find a matching and unexpired OTP for registration
     const otpRecord = await db.getAsync(
-      'SELECT id FROM otps WHERE identifier = ? AND otp = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
-      [identifier, otp, now]
+      'SELECT id FROM otps WHERE identifier = ? AND otp = ? AND purpose = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+      [identifier, otp, 'registration', now]
     );
 
     if (!otpRecord) {
       return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
 
-    // Delete the OTP record to prevent reuse
-    await db.runAsync('DELETE FROM otps WHERE id = ?', [otpRecord.id]);
+    // Get pending registration data
+    const pendingRegistration = await db.getAsync(
+      'SELECT * FROM pending_registrations WHERE identifier = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+      [identifier, now]
+    );
 
-    res.json({ message: 'OTP verified successfully' });
+    if (!pendingRegistration) {
+      return res.status(400).json({ error: 'Registration session expired. Please register again.' });
+    }
+
+    // Create the user account
+    const result = await db.runAsync(
+      'INSERT INTO users (email, password, name, mobileNumber) VALUES (?, ?, ?, ?)',
+      [
+        pendingRegistration.email,
+        pendingRegistration.password,
+        pendingRegistration.name,
+        pendingRegistration.mobileNumber
+      ]
+    );
+
+    // Clean up pending registration and OTP
+    await db.runAsync('DELETE FROM otps WHERE id = ?', [otpRecord.id]);
+    await db.runAsync('DELETE FROM pending_registrations WHERE identifier = ?', [identifier]);
+
+    // Generate JWT token
+    const token = jwt.sign({ userId: result.lastID }, JWT_SECRET, { expiresIn: '24h' });
+
+    res.status(201).json({
+      message: 'Account created successfully',
+      token,
+      user: {
+        id: result.lastID,
+        email: pendingRegistration.email,
+        name: pendingRegistration.name,
+        mobileNumber: pendingRegistration.mobileNumber
+      },
+    });
   } catch (error) {
     console.error('Verify OTP error:', error);
     res.status(500).json({ error: 'OTP verification failed' });
+  }
+});
+
+// RESEND OTP
+router.post('/resend-otp', async (req, res) => {
+  try {
+    const { identifier } = req.body;
+
+    if (!identifier) {
+      return res.status(400).json({ error: 'Identifier is required' });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // Check if there's a pending registration
+    const pendingRegistration = await db.getAsync(
+      'SELECT * FROM pending_registrations WHERE identifier = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+      [identifier, now]
+    );
+
+    if (!pendingRegistration) {
+      return res.status(400).json({ error: 'No pending registration found. Please register again.' });
+    }
+
+    // Clean up existing OTPs for this identifier
+    await db.runAsync(
+      'DELETE FROM otps WHERE identifier = ? AND purpose = ?',
+      [identifier, 'registration']
+    );
+
+    // Generate a new 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpExpiresAt = Math.floor(Date.now() / 1000) + (10 * 60); // 10 minutes from now
+
+    const otpType = pendingRegistration.email ? 'email' : 'mobile';
+
+    // Send OTP
+    try {
+      await sendOTP(identifier, otp, otpType);
+    } catch (emailError) {
+      console.error('Failed to resend OTP:', emailError);
+      return res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
+    }
+
+    // Store new OTP in the database
+    await db.runAsync(
+      'INSERT INTO otps (identifier, type, otp, purpose, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [identifier, otpType, otp, 'registration', otpExpiresAt, now]
+    );
+
+    res.json({ message: 'OTP resent successfully' });
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ error: 'Failed to resend OTP' });
   }
 });
 
@@ -130,10 +225,10 @@ router.post('/verify-otp-reset', async (req, res) => {
 
     const now = Math.floor(Date.now() / 1000);
 
-    // Find a matching and unexpired OTP
+    // Find a matching and unexpired OTP for password reset
     const otpRecord = await db.getAsync(
-      'SELECT id FROM otps WHERE identifier = ? AND otp = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
-      [identifier, otp, now]
+      'SELECT id FROM otps WHERE identifier = ? AND otp = ? AND purpose = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+      [identifier, otp, 'password_reset', now]
     );
 
     if (!otpRecord) {
@@ -192,11 +287,11 @@ router.post('/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '24h' });
 
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Temporary for debugging
     res.json({
       message: 'Login successful',
       token,
- user: { id: user.id,
+      user: { 
+        id: user.id,
         email: user.email,
         name: user.name
       }
@@ -269,6 +364,12 @@ router.post('/forgot-password', async (req, res) => {
 
     // Always return success for security reasons, but only send OTP if user exists
     if (user) {
+      // Clean up existing password reset OTPs for this identifier
+      await db.runAsync(
+        'DELETE FROM otps WHERE identifier = ? AND purpose = ?',
+        [identifier, 'password_reset']
+      );
+
       // Generate a 6-digit OTP
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = Math.floor(Date.now() / 1000) + (10 * 60); // 10 minutes from now
@@ -286,8 +387,8 @@ router.post('/forgot-password', async (req, res) => {
 
       // Store OTP in the database
       await db.runAsync(
-        'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
-        [identifier, otpType, otp, expiresAt, Math.floor(Date.now() / 1000)]
+        'INSERT INTO otps (identifier, type, otp, purpose, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [identifier, otpType, otp, 'password_reset', expiresAt, Math.floor(Date.now() / 1000)]
       );
     } else {
       console.log(`❌ Password reset attempt for unknown identifier: ${identifier}`);
