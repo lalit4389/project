@@ -23,7 +23,7 @@ const getKey = () => {
 };
 
 // Encrypt plaintext using AES-256-CBC
-export const encryptData = (text: string): string => {
+export const encryptData = (text) => {
   try {
     if (!text) throw new Error('Text to encrypt cannot be empty');
 
@@ -43,7 +43,7 @@ export const encryptData = (text: string): string => {
 };
 
 // Decrypt the encrypted string
-export const decryptData = (encryptedData: string): string => {
+export const decryptData = (encryptedData) => {
   try {
     if (!encryptedData || typeof encryptedData !== 'string') {
       throw new Error('Invalid encrypted data');
@@ -73,7 +73,7 @@ export const decryptData = (encryptedData: string): string => {
 };
 
 // Utility to test encryption/decryption
-export const testEncryption = (): boolean => {
+export const testEncryption = () => {
   try {
     const testData = 'test-api-key-12345';
     const encrypted = encryptData(testData);
