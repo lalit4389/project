@@ -29,11 +29,13 @@ interface BrokerConnection {
 const BrokerConnection: React.FC = () => {
   const [connections, setConnections] = useState<BrokerConnection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [authenticationStep, setAuthenticationStep] = useState<{connectionId: number, loginUrl: string} | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState<number | null>(null);
   const [syncingConnection, setSyncingConnection] = useState<number | null>(null);
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
+  const [showConnectionForm, setShowConnectionForm] = useState(false);
   
   const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<BrokerConnectionForm>();
   const selectedBroker = watch('brokerName');
@@ -81,7 +83,9 @@ const BrokerConnection: React.FC = () => {
   };
 
   const onSubmit = async (data: BrokerConnectionForm) => {
+    setIsSubmitting(true);
     try {
+      console.log('Submitting broker connection:', data);
       const response = await brokerAPI.connect(data);
       
       if (response.data.requiresAuth && response.data.loginUrl) {
@@ -94,11 +98,33 @@ const BrokerConnection: React.FC = () => {
       } else {
         toast.success('Broker connected successfully!');
         reset();
+        setShowConnectionForm(false);
         fetchConnections();
       }
     } catch (error: any) {
+      console.error('Broker connection error:', error);
       toast.error(error.response?.data?.error || 'Failed to connect broker');
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleConnectClick = (brokerId: string) => {
+    // Check if already connected
+    const existingConnection = connections.find(c => c.broker_name.toLowerCase() === brokerId);
+    if (existingConnection && existingConnection.is_active) {
+      toast.info('Broker is already connected');
+      return;
+    }
+
+    // Pre-fill the form and show it
+    reset({
+      brokerName: brokerId,
+      apiKey: '',
+      apiSecret: '',
+      userId: ''
+    });
+    setShowConnectionForm(true);
   };
 
   const handleZerodhaAuth = () => {
@@ -130,6 +156,7 @@ const BrokerConnection: React.FC = () => {
       toast.success('Zerodha authentication completed successfully!');
       setAuthenticationStep(null);
       reset();
+      setShowConnectionForm(false);
       fetchConnections();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Authentication failed');
@@ -242,7 +269,7 @@ const BrokerConnection: React.FC = () => {
       >
         <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
           <Zap className="w-6 h-6 mr-2 text-olive-400" />
-          Connected Brokers
+          Available Brokers
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -381,11 +408,12 @@ const BrokerConnection: React.FC = () => {
                     </div>
                   ) : (
                     <motion.button 
+                      onClick={() => handleConnectClick(broker.id)}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="w-full bg-dark-700 text-olive-200 py-3 rounded-xl hover:bg-dark-600 transition-colors font-medium"
+                      className="w-full bg-gradient-to-r from-olive-600 to-olive-700 text-white py-3 rounded-xl hover:shadow-lg transition-all font-medium"
                     >
-                      Connect
+                      Connect {broker.name}
                     </motion.button>
                   )}
                 </div>
@@ -441,47 +469,51 @@ const BrokerConnection: React.FC = () => {
       </AnimatePresence>
 
       {/* Enhanced Connection Form */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        whileHover={{ scale: 1.005 }}
-        className="bg-dark-800/50 backdrop-blur-xl rounded-2xl p-6 border border-olive-500/20 shadow-xl"
-        style={{ 
-          transformStyle: 'preserve-3d',
-          boxShadow: '0 20px 40px -12px rgba(0, 0, 0, 0.4)'
-        }}
-      >
-        <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
-          <Link className="w-6 h-6 mr-2 text-olive-400" />
-          Connect New Broker
-        </h2>
-        
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-olive-200 mb-2">
-              Select Broker
-            </label>
-            <select
-              {...register('brokerName', { required: 'Please select a broker' })}
-              className="w-full px-4 py-3 bg-dark-800/50 border border-olive-500/20 rounded-xl text-white focus:ring-2 focus:ring-olive-500 focus:border-transparent backdrop-blur-sm"
-            >
-              <option value="">Choose a broker...</option>
-              <option value="zerodha">Zerodha</option>
-              <option value="upstox">Upstox</option>
-              <option value="5paisa">5Paisa</option>
-            </select>
-            {errors.brokerName && (
-              <p className="mt-1 text-sm text-red-400">{errors.brokerName.message}</p>
-            )}
-          </div>
+      <AnimatePresence>
+        {showConnectionForm && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="bg-dark-800/50 backdrop-blur-xl rounded-2xl p-6 border border-olive-500/20 shadow-xl"
+            style={{ 
+              transformStyle: 'preserve-3d',
+              boxShadow: '0 20px 40px -12px rgba(0, 0, 0, 0.4)'
+            }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white flex items-center">
+                <Link className="w-6 h-6 mr-2 text-olive-400" />
+                Connect {selectedBroker ? brokers.find(b => b.id === selectedBroker)?.name : 'Broker'}
+              </h2>
+              <motion.button
+                onClick={() => {
+                  setShowConnectionForm(false);
+                  reset();
+                }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="text-olive-400 hover:text-olive-300"
+              >
+                ✕
+              </motion.button>
+            </div>
+            
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-olive-200 mb-2">
+                  Broker
+                </label>
+                <input
+                  {...register('brokerName')}
+                  type="text"
+                  readOnly
+                  className="w-full px-4 py-3 bg-dark-800/50 border border-olive-500/20 rounded-xl text-white backdrop-blur-sm opacity-75"
+                  value={brokers.find(b => b.id === selectedBroker)?.name || ''}
+                />
+              </div>
 
-          {selectedBroker && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="space-y-6"
-            >
               <div>
                 <label className="block text-sm font-medium text-olive-200 mb-2">
                   API Key
@@ -536,22 +568,38 @@ const BrokerConnection: React.FC = () => {
                 )}
               </div>
 
-              <motion.button
-                whileHover={{ scale: 1.02, rotateX: 5 }}
-                whileTap={{ scale: 0.98 }}
-                type="submit"
-                className="w-full bg-gradient-to-r from-olive-600 to-olive-700 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition-all flex items-center justify-center space-x-2"
-                style={{ 
-                  boxShadow: '0 10px 25px rgba(138, 156, 112, 0.3)'
-                }}
-              >
-                <Link className="w-5 h-5" />
-                <span>Connect Broker</span>
-              </motion.button>
-            </motion.div>
-          )}
-        </form>
-      </motion.div>
+              <div className="flex space-x-4">
+                <motion.button
+                  whileHover={{ scale: 1.02, rotateX: 5 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-gradient-to-r from-olive-600 to-olive-700 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ 
+                    boxShadow: '0 10px 25px rgba(138, 156, 112, 0.3)'
+                  }}
+                >
+                  <Link className="w-5 h-5" />
+                  <span>{isSubmitting ? 'Connecting...' : 'Connect Broker'}</span>
+                </motion.button>
+
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    setShowConnectionForm(false);
+                    reset();
+                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="px-6 py-4 bg-dark-700 text-olive-200 rounded-xl font-medium hover:bg-dark-600 transition-colors"
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
