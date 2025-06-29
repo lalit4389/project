@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, TrendingUp } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, TrendingUp, AlertCircle } from 'lucide-react';
 import { authAPI } from '../../services/api';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -14,18 +14,33 @@ interface LoginForm {
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [loginError, setLoginError] = React.useState<string>('');
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
   const navigate = useNavigate();
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
+    setLoginError('');
+    
     try {
       const response = await authAPI.login(data);
       localStorage.setItem('authToken', response.data.token);
       toast.success('Login successful!');
       navigate('/dashboard');
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Login failed');
+      const errorMessage = error.response?.data?.error || 'Login failed';
+      const errorDetails = error.response?.data?.message || '';
+      
+      setLoginError(errorMessage);
+      
+      // Show specific error messages
+      if (error.response?.status === 404) {
+        toast.error('Account not found. Please check your email or create a new account.');
+      } else if (error.response?.status === 401) {
+        toast.error('Invalid password. Please try again.');
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -98,6 +113,25 @@ const Login: React.FC = () => {
             <h2 className="text-4xl font-bold text-white mb-3">Welcome Back</h2>
             <p className="text-olive-200/70">Sign in to your AutoTraderHub account</p>
           </div>
+
+          {/* Error Message Display */}
+          {loginError && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 bg-red-800/20 border border-red-500/30 rounded-xl flex items-center space-x-3"
+            >
+              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+              <div>
+                <p className="text-red-300 font-medium">{loginError}</p>
+                {loginError === 'Account not available' && (
+                  <p className="text-red-200/70 text-sm mt-1">
+                    Don't have an account? <Link to="/register" className="text-red-300 hover:text-red-200 underline">Create one here</Link>
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, TrendingUp, Phone } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, TrendingUp, Phone, CheckCircle } from 'lucide-react';
 import { authAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -19,6 +19,7 @@ const Register: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showOtpForm, setShowOtpForm] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [otp, setOtp] = useState('');
   const [userIdentifier, setUserIdentifier] = useState(''); // To store email or mobile for OTP verification
   const [canResendOtp, setCanResendOtp] = useState(false);
@@ -92,11 +93,18 @@ const Register: React.FC = () => {
     try {
       const response = await authAPI.verifyOtp({ identifier: userIdentifier, otp });
       
-      if (response.data.token) {
-        localStorage.setItem('authToken', response.data.token);
-        toast.success('Account created successfully!');
-        navigate('/dashboard');
+      if (response.data.accountCreated) {
+        // Show success message and redirect to login
+        setShowOtpForm(false);
+        setShowSuccessMessage(true);
+        toast.success('Account created successfully! You can now login.');
+        
+        // Redirect to login after 3 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
       } else {
+        // Fallback - shouldn't happen with new implementation
         toast.success(response.data.message);
         navigate('/login');
       }
@@ -195,7 +203,7 @@ const Register: React.FC = () => {
           </div>
 
           <AnimatePresence mode="wait">
-            {!showOtpForm ? (
+            {!showOtpForm && !showSuccessMessage ? (
               <motion.form
                 key="registration-form"
                 initial={{ opacity: 0, y: 20 }}
@@ -366,6 +374,43 @@ const Register: React.FC = () => {
                   {isLoading ? 'Creating Account...' : 'Create Account'}
                 </motion.button>
               </motion.form>
+            ) : showSuccessMessage ? (
+              <motion.div
+                key="success-message"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                className="text-center space-y-6"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="w-20 h-20 bg-gradient-to-r from-olive-500 to-olive-600 rounded-full flex items-center justify-center mx-auto"
+                >
+                  <CheckCircle className="w-10 h-10 text-white" />
+                </motion.div>
+                
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Account Created Successfully!</h3>
+                  <p className="text-olive-200/70 mb-4">
+                    Your AutoTraderHub account has been created. You can now login with your credentials.
+                  </p>
+                  <p className="text-olive-300 text-sm">
+                    Redirecting to login page in 3 seconds...
+                  </p>
+                </div>
+
+                <motion.button
+                  onClick={() => navigate('/login')}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="bg-gradient-to-r from-olive-600 to-olive-700 text-white px-8 py-3 rounded-xl font-medium hover:shadow-lg transition-all"
+                >
+                  Go to Login
+                </motion.button>
+              </motion.div>
             ) : (
               <motion.div
                 key="otp-verification-form"

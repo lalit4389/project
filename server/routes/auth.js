@@ -141,12 +141,10 @@ router.post('/verify-otp', async (req, res) => {
     await db.runAsync('DELETE FROM otps WHERE id = ?', [otpRecord.id]);
     await db.runAsync('DELETE FROM pending_registrations WHERE identifier = ?', [identifier]);
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: result.lastID }, JWT_SECRET, { expiresIn: '24h' });
-
+    // Return success message without auto-login
     res.status(201).json({
-      message: 'Account created successfully',
-      token,
+      message: 'Account created successfully! You can now login with your credentials.',
+      accountCreated: true,
       user: {
         id: result.lastID,
         email: pendingRegistration.email,
@@ -258,7 +256,7 @@ router.post('/verify-otp-reset', async (req, res) => {
   }
 });
 
-// LOGIN
+// LOGIN - Enhanced with better error messages
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -274,14 +272,22 @@ router.post('/login', async (req, res) => {
       'SELECT * FROM users WHERE email = ?',
       [normalizedEmail]
     );
+    
+    // Check if account exists
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(404).json({ 
+        error: 'Account not available',
+        message: 'No account found with this email address. Please check your email or create a new account.'
+      });
     }
 
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Wrong password' });
+      return res.status(401).json({ 
+        error: 'Invalid password',
+        message: 'The password you entered is incorrect. Please try again.'
+      });
     }
 
     // Generate JWT token
