@@ -86,10 +86,13 @@ export const brokerAPI = {
   testConnection: (connectionId) => api.post(`/broker/test/${connectionId}`),
 };
 
-// Orders API
+// Enhanced Orders API with real-time capabilities
 export const ordersAPI = {
   getOrders: (params) => api.get('/orders', { params }),
-  getPositions: () => api.get('/orders/positions'),
+  getOrderDetails: (orderId, params) => api.get(`/orders/${orderId}`, { params }),
+  syncOrders: (brokerConnectionId) => api.post(`/orders/sync/${brokerConnectionId}`),
+  updateOrderStatus: (orderId, data) => api.patch(`/orders/${orderId}/status`, data),
+  getPositions: (params) => api.get('/orders/positions', { params }),
   getPnL: (params) => api.get('/orders/pnl', { params }),
 };
 
