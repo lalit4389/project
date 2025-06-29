@@ -40,11 +40,23 @@ export const initDatabase = async () => {
         identifier TEXT NOT NULL, -- Can be email or mobile number
         type TEXT NOT NULL, -- 'email' or 'mobile'
         otp TEXT NOT NULL,
-        expires_at INTEGER NOT NULL -- Unix timestamp
-,
-        created_at INTEGER NOT NULL)
+        expires_at INTEGER NOT NULL, -- Unix timestamp
+        created_at INTEGER NOT NULL
+      )
     `);
 
+    // Password reset tokens table
+    await db.runAsync(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT NOT NULL,
+        expires_at INTEGER NOT NULL, -- Unix timestamp
+        used BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+      )
+    `);
 
     // Broker connections table
     await db.runAsync(`
