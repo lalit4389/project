@@ -11,8 +11,8 @@ const createTransporter = () => {
       port: 587,
       secure: false,
       auth: {
-        user: process.env.EMAIL_USER || 'your-email@gmail.com',
-        pass: process.env.EMAIL_PASS || 'your-app-password'
+        user: process.env.EMAIL_USER || 'pnrstatuscf@gmail.com',
+        pass: process.env.EMAIL_PASS || 'Vl142016d@27'
       },
       tls: {
         rejectUnauthorized: false
