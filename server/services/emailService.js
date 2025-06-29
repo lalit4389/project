@@ -15,11 +15,7 @@ const createTransporter = () => {
     connectionTimeout: 60000, // 60 seconds
     greetingTimeout: 30000,   // 30 seconds
     socketTimeout: 60000,     // 60 seconds
-    // Additional Gmail-specific settings
-    tls: {
-      ciphers: 'SSLv3',
-      rejectUnauthorized: false
-    },
+    // Remove the problematic TLS configuration to use modern secure defaults
     debug: process.env.NODE_ENV === 'development',
     logger: process.env.NODE_ENV === 'development'
   };
