@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
-import { Link, Shield, CheckCircle, AlertCircle, Settings, Zap } from 'lucide-react';
+import { 
+  Link, Shield, CheckCircle, AlertCircle, Settings, Zap, 
+  ExternalLink, Copy, RefreshCw, Activity, TrendingUp,
+  Wifi, WifiOff, TestTube, Eye, EyeOff
+} from 'lucide-react';
 import { brokerAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -12,16 +16,53 @@ interface BrokerConnectionForm {
   userId: string;
 }
 
+interface BrokerConnection {
+  id: number;
+  broker_name: string;
+  is_active: boolean;
+  is_authenticated: boolean;
+  created_at: string;
+  last_sync: string;
+  webhook_url: string;
+}
+
 const BrokerConnection: React.FC = () => {
-  const [connections, setConnections] = useState<any[]>([]);
+  const [connections, setConnections] = useState<BrokerConnection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showApiSecret, setShowApiSecret] = useState(false);
+  const [authenticationStep, setAuthenticationStep] = useState<{connectionId: number, loginUrl: string} | null>(null);
+  const [copiedWebhook, setCopiedWebhook] = useState<number | null>(null);
+  const [syncingConnection, setSyncingConnection] = useState<number | null>(null);
+  const [testingConnection, setTestingConnection] = useState<number | null>(null);
+  
   const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<BrokerConnectionForm>();
   const selectedBroker = watch('brokerName');
 
   const brokers = [
-    { id: 'zerodha', name: 'Zerodha', logo: '🔥', description: 'India\'s largest stockbroker' },
-    { id: 'upstox', name: 'Upstox', logo: '⚡', description: 'Next-generation trading platform' },
-    { id: '5paisa', name: '5Paisa', logo: '💎', description: 'Cost-effective trading solution' }
+    { 
+      id: 'zerodha', 
+      name: 'Zerodha', 
+      logo: '🔥', 
+      description: 'India\'s largest stockbroker with advanced API support',
+      features: ['Real-time data', 'Options trading', 'Commodity trading'],
+      authRequired: true
+    },
+    { 
+      id: 'upstox', 
+      name: 'Upstox', 
+      logo: '⚡', 
+      description: 'Next-generation trading platform with lightning-fast execution',
+      features: ['Mobile trading', 'Advanced charts', 'Margin trading'],
+      authRequired: false
+    },
+    { 
+      id: '5paisa', 
+      name: '5Paisa', 
+      logo: '💎', 
+      description: 'Cost-effective trading with comprehensive market access',
+      features: ['Low brokerage', 'Research reports', 'Investment advisory'],
+      authRequired: false
+    }
   ];
 
   useEffect(() => {
@@ -41,12 +82,57 @@ const BrokerConnection: React.FC = () => {
 
   const onSubmit = async (data: BrokerConnectionForm) => {
     try {
-      await brokerAPI.connect(data);
-      toast.success('Broker connected successfully!');
+      const response = await brokerAPI.connect(data);
+      
+      if (response.data.requiresAuth && response.data.loginUrl) {
+        // Show authentication step for Zerodha
+        setAuthenticationStep({
+          connectionId: response.data.connectionId,
+          loginUrl: response.data.loginUrl
+        });
+        toast.success('Credentials saved! Please complete authentication.');
+      } else {
+        toast.success('Broker connected successfully!');
+        reset();
+        fetchConnections();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to connect broker');
+    }
+  };
+
+  const handleZerodhaAuth = () => {
+    if (authenticationStep) {
+      // Open Zerodha login in new window
+      const authWindow = window.open(
+        authenticationStep.loginUrl,
+        'zerodha-auth',
+        'width=600,height=700,scrollbars=yes,resizable=yes'
+      );
+
+      // Listen for the redirect with request token
+      const checkClosed = setInterval(() => {
+        if (authWindow?.closed) {
+          clearInterval(checkClosed);
+          // Prompt user to enter request token manually
+          const requestToken = prompt('Please enter the request token from the URL:');
+          if (requestToken) {
+            completeZerodhaAuth(authenticationStep.connectionId, requestToken);
+          }
+        }
+      }, 1000);
+    }
+  };
+
+  const completeZerodhaAuth = async (connectionId: number, requestToken: string) => {
+    try {
+      await brokerAPI.completeZerodhaAuth(connectionId, requestToken);
+      toast.success('Zerodha authentication completed successfully!');
+      setAuthenticationStep(null);
       reset();
       fetchConnections();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to connect broker');
+      toast.error(error.response?.data?.error || 'Authentication failed');
     }
   };
 
@@ -57,6 +143,37 @@ const BrokerConnection: React.FC = () => {
       fetchConnections();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to disconnect broker');
+    }
+  };
+
+  const copyWebhookUrl = (webhookUrl: string, connectionId: number) => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhook(connectionId);
+    toast.success('Webhook URL copied to clipboard!');
+    setTimeout(() => setCopiedWebhook(null), 2000);
+  };
+
+  const syncPositions = async (connectionId: number) => {
+    setSyncingConnection(connectionId);
+    try {
+      await brokerAPI.syncPositions(connectionId);
+      toast.success('Positions synced successfully!');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to sync positions');
+    } finally {
+      setSyncingConnection(null);
+    }
+  };
+
+  const testConnection = async (connectionId: number) => {
+    setTestingConnection(connectionId);
+    try {
+      const response = await brokerAPI.testConnection(connectionId);
+      toast.success(`Connection test successful! Connected as ${response.data.profile.user_name}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Connection test failed');
+    } finally {
+      setTestingConnection(null);
     }
   };
 
@@ -111,7 +228,7 @@ const BrokerConnection: React.FC = () => {
         </div>
       </motion.div>
 
-      {/* Enhanced Connected Brokers Grid */}
+      {/* Connected Brokers Grid */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -128,10 +245,11 @@ const BrokerConnection: React.FC = () => {
           Connected Brokers
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {brokers.map((broker, index) => {
             const connection = connections.find(c => c.broker_name.toLowerCase() === broker.id);
             const isConnected = connection?.is_active;
+            const isAuthenticated = connection?.is_authenticated;
             
             return (
               <motion.div
@@ -145,8 +263,10 @@ const BrokerConnection: React.FC = () => {
                   rotateX: 5,
                 }}
                 className={`group p-6 rounded-2xl border-2 transition-all duration-500 ${
-                  isConnected
+                  isConnected && isAuthenticated
                     ? 'border-olive-500/40 bg-olive-800/20'
+                    : isConnected
+                    ? 'border-yellow-500/40 bg-yellow-800/20'
                     : 'border-olive-500/20 bg-dark-800/30'
                 } backdrop-blur-xl shadow-xl`}
                 style={{ 
@@ -172,10 +292,15 @@ const BrokerConnection: React.FC = () => {
                   </p>
                   
                   <div className="flex items-center justify-center space-x-2 mb-6">
-                    {isConnected ? (
+                    {isConnected && isAuthenticated ? (
                       <>
-                        <CheckCircle className="w-5 h-5 text-olive-400" />
-                        <span className="text-olive-300 font-medium">Connected</span>
+                        <Wifi className="w-5 h-5 text-olive-400" />
+                        <span className="text-olive-300 font-medium">Connected & Authenticated</span>
+                      </>
+                    ) : isConnected ? (
+                      <>
+                        <WifiOff className="w-5 h-5 text-yellow-400" />
+                        <span className="text-yellow-300 font-medium">Connected (Auth Required)</span>
                       </>
                     ) : (
                       <>
@@ -187,6 +312,55 @@ const BrokerConnection: React.FC = () => {
                   
                   {isConnected ? (
                     <div className="space-y-3">
+                      {/* Webhook URL */}
+                      {connection?.webhook_url && (
+                        <div className="bg-dark-900/50 rounded-lg p-3 mb-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-olive-200/70">Webhook URL:</span>
+                            <motion.button
+                              onClick={() => copyWebhookUrl(connection.webhook_url, connection.id)}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              className="text-olive-400 hover:text-olive-300"
+                            >
+                              {copiedWebhook === connection.id ? (
+                                <CheckCircle className="w-4 h-4" />
+                              ) : (
+                                <Copy className="w-4 h-4" />
+                              )}
+                            </motion.button>
+                          </div>
+                          <code className="text-xs text-olive-300 break-all">
+                            {connection.webhook_url.substring(0, 50)}...
+                          </code>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <motion.button 
+                          onClick={() => syncPositions(connection.id)}
+                          disabled={syncingConnection === connection.id}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="bg-olive-600 text-white py-2 px-3 rounded-lg hover:bg-olive-700 transition-colors flex items-center justify-center space-x-1 text-sm disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${syncingConnection === connection.id ? 'animate-spin' : ''}`} />
+                          <span>Sync</span>
+                        </motion.button>
+
+                        <motion.button
+                          onClick={() => testConnection(connection.id)}
+                          disabled={testingConnection === connection.id}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="bg-blue-600 text-white py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1 text-sm disabled:opacity-50"
+                        >
+                          <TestTube className={`w-3 h-3 ${testingConnection === connection.id ? 'animate-pulse' : ''}`} />
+                          <span>Test</span>
+                        </motion.button>
+                      </div>
+
                       <motion.button 
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -195,6 +369,7 @@ const BrokerConnection: React.FC = () => {
                         <Settings className="w-4 h-4" />
                         <span>Settings</span>
                       </motion.button>
+                      
                       <motion.button
                         onClick={() => disconnectBroker(connection.id)}
                         whileHover={{ scale: 1.05 }}
@@ -219,6 +394,51 @@ const BrokerConnection: React.FC = () => {
           })}
         </div>
       </motion.div>
+
+      {/* Zerodha Authentication Modal */}
+      <AnimatePresence>
+        {authenticationStep && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-dark-800 rounded-2xl p-6 max-w-md w-full border border-olive-500/20"
+            >
+              <h3 className="text-xl font-bold text-white mb-4">Complete Zerodha Authentication</h3>
+              <p className="text-olive-200/70 mb-6">
+                Click the button below to open Zerodha login page. After logging in, you'll get a request token that you need to enter here.
+              </p>
+              
+              <div className="space-y-4">
+                <motion.button
+                  onClick={handleZerodhaAuth}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-gradient-to-r from-olive-600 to-olive-700 text-white py-3 rounded-xl font-medium flex items-center justify-center space-x-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Open Zerodha Login</span>
+                </motion.button>
+
+                <motion.button
+                  onClick={() => setAuthenticationStep(null)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-dark-700 text-olive-200 py-3 rounded-xl font-medium"
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Enhanced Connection Form */}
       <motion.div
@@ -268,7 +488,7 @@ const BrokerConnection: React.FC = () => {
                 </label>
                 <input
                   {...register('apiKey', { required: 'API Key is required' })}
-                  type="password"
+                  type="text"
                   className="w-full px-4 py-3 bg-dark-800/50 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent backdrop-blur-sm"
                   placeholder="Enter your API key"
                 />
@@ -281,12 +501,21 @@ const BrokerConnection: React.FC = () => {
                 <label className="block text-sm font-medium text-olive-200 mb-2">
                   API Secret
                 </label>
-                <input
-                  {...register('apiSecret', { required: 'API Secret is required' })}
-                  type="password"
-                  className="w-full px-4 py-3 bg-dark-800/50 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent backdrop-blur-sm"
-                  placeholder="Enter your API secret"
-                />
+                <div className="relative">
+                  <input
+                    {...register('apiSecret', { required: 'API Secret is required' })}
+                    type={showApiSecret ? 'text' : 'password'}
+                    className="w-full px-4 py-3 pr-12 bg-dark-800/50 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent backdrop-blur-sm"
+                    placeholder="Enter your API secret"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiSecret(!showApiSecret)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-olive-400/50 hover:text-olive-300/70 transition-colors"
+                  >
+                    {showApiSecret ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
                 {errors.apiSecret && (
                   <p className="mt-1 text-sm text-red-400">{errors.apiSecret.message}</p>
                 )}

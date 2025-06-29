@@ -46,8 +46,14 @@ export const authAPI = {
 // Broker API
 export const brokerAPI = {
   getConnections: () => api.get('/broker/connections'),
+  getConnection: (id) => api.get(`/broker/connections/${id}`),
   connect: (data) => api.post('/broker/connect', data),
   disconnect: (connectionId) => api.post('/broker/disconnect', { connectionId }),
+  completeZerodhaAuth: (connectionId, requestToken) => api.post('/broker/auth/zerodha', { connectionId, requestToken }),
+  syncPositions: (connectionId) => api.post(`/broker/sync/positions/${connectionId}`),
+  syncHoldings: (connectionId) => api.post(`/broker/sync/holdings/${connectionId}`),
+  getMarketData: (connectionId, instruments) => api.get(`/broker/market-data/${connectionId}`, { params: { instruments } }),
+  testConnection: (connectionId) => api.post(`/broker/test/${connectionId}`),
 };
 
 // Orders API
@@ -55,6 +61,12 @@ export const ordersAPI = {
   getOrders: (params) => api.get('/orders', { params }),
   getPositions: () => api.get('/orders/positions'),
   getPnL: (params) => api.get('/orders/pnl', { params }),
+};
+
+// Webhook API
+export const webhookAPI = {
+  getLogs: (userId, params) => api.get(`/webhook/logs/${userId}`, { params }),
+  testWebhook: (userId, webhookId) => api.post(`/webhook/test/${userId}/${webhookId}`),
 };
 
 export default api;
