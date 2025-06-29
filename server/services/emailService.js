@@ -6,7 +6,9 @@ const transporter = nodemailer.createTransporter({
   auth: {
     user: 'pnrstatuscf@gmail.com',
     pass: 'Vl142016d@27'
-  }
+  },
+  debug: true, // Enable debug logging
+  logger: true // Enable logger
 });
 
 // Verify transporter configuration
@@ -20,6 +22,8 @@ transporter.verify((error, success) => {
 
 export const sendOTP = async (identifier, otp, type = 'email') => {
   try {
+    console.log(`📧 Attempting to send OTP to ${identifier} (type: ${type})`);
+    
     if (type === 'email') {
       const mailOptions = {
         from: {
@@ -73,6 +77,12 @@ export const sendOTP = async (identifier, otp, type = 'email') => {
         `
       };
 
+      console.log('📧 Sending email with options:', {
+        from: mailOptions.from,
+        to: mailOptions.to,
+        subject: mailOptions.subject
+      });
+
       const info = await transporter.sendMail(mailOptions);
       console.log(`✅ Registration OTP email sent to ${identifier}`);
       console.log(`📧 Message ID: ${info.messageId}`);
@@ -97,12 +107,14 @@ export const sendOTP = async (identifier, otp, type = 'email') => {
     }
   } catch (error) {
     console.error('❌ Failed to send OTP:', error);
-    throw new Error('Failed to send OTP email');
+    throw new Error(`Failed to send OTP: ${error.message}`);
   }
 };
 
 export const sendPasswordResetOTP = async (identifier, otp) => {
   try {
+    console.log(`🔐 Attempting to send password reset OTP to ${identifier}`);
+    
     const mailOptions = {
       from: {
         name: 'AutoTraderHub Security',
@@ -161,6 +173,12 @@ export const sendPasswordResetOTP = async (identifier, otp) => {
       `
     };
 
+    console.log('🔐 Sending password reset email with options:', {
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject
+    });
+
     const info = await transporter.sendMail(mailOptions);
     console.log(`✅ Password reset OTP email sent to ${identifier}`);
     console.log(`📧 Message ID: ${info.messageId}`);
@@ -173,6 +191,6 @@ export const sendPasswordResetOTP = async (identifier, otp) => {
     };
   } catch (error) {
     console.error('❌ Failed to send password reset OTP:', error);
-    throw new Error('Failed to send password reset email');
+    throw new Error(`Failed to send password reset email: ${error.message}`);
   }
 };

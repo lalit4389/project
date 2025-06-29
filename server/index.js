@@ -13,10 +13,20 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-// Security headers
-app.use(cors());
 
-app.use(helmet());
+// CORS configuration - Allow all origins for development
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Security headers
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: false
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -29,8 +39,20 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
 // Initialize database
-await initDatabase();
+try {
+  await initDatabase();
+  console.log('✅ Database initialized successfully');
+} catch (error) {
+  console.error('❌ Database initialization failed:', error);
+  process.exit(1);
+}
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -40,7 +62,12 @@ app.use('/api/webhook', webhookRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    port: PORT,
+    env: process.env.NODE_ENV || 'development'
+  });
 });
 
 // Error handling
@@ -54,11 +81,13 @@ app.use((err, req, res, next) => {
 
 // 404 route
 app.use('*', (req, res) => {
+  console.log(`❌ 404 - Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ error: 'Route not found' });
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log(`📊 AutoTraderHub API is ready`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
