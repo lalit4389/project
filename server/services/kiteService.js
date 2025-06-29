@@ -48,11 +48,25 @@ class KiteService {
     return await this.initializeKite(brokerConnection);
   }
 
-  // Generate login URL for Kite Connect
-  async generateLoginUrl(apiKey) {
+  // Generate login URL for Kite Connect with custom redirect URL
+  async generateLoginUrl(apiKey, redirectUrl = null) {
     try {
       const kc = new KiteConnect({ api_key: apiKey });
-      return kc.getLoginURL();
+      
+      // If no redirect URL provided, use the default
+      if (!redirectUrl) {
+        return kc.getLoginURL();
+      }
+      
+      // Generate login URL with custom redirect
+      const baseLoginUrl = 'https://kite.zerodha.com/connect/login';
+      const params = new URLSearchParams({
+        api_key: apiKey,
+        v: '3',
+        redirect_url: redirectUrl
+      });
+      
+      return `${baseLoginUrl}?${params.toString()}`;
     } catch (error) {
       console.error('Failed to generate login URL:', error);
       throw new Error('Failed to generate login URL');
