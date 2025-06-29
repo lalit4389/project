@@ -1,34 +1,102 @@
 import nodemailer from 'nodemailer';
 
-// Gmail SMTP configuration
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'pnrstatuscf@gmail.com',
-    pass: 'Vl142016d@27'
-  },
-  debug: true, // Enable debug logging
-  logger: true // Enable logger
-});
+// Create transporter with environment variables and better configuration
+const createTransporter = () => {
+  const config = {
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    },
+    debug: process.env.NODE_ENV === 'development',
+    logger: process.env.NODE_ENV === 'development',
+    // Add additional configuration for better reliability
+    pool: true,
+    maxConnections: 1,
+    rateDelta: 20000,
+    rateLimit: 5,
+    // Increase timeout values
+    connectionTimeout: 60000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000
+  };
 
-// Verify transporter configuration
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Email service configuration error:', error);
-  } else {
-    console.log('✅ Email service is ready to send emails');
+  return nodemailer.createTransporter(config);
+};
+
+let transporter;
+
+// Initialize transporter only if credentials are available
+const initializeEmailService = () => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn('⚠️ Email service not configured - EMAIL_USER and EMAIL_PASS environment variables are required');
+    console.warn('📧 Email functionality will be simulated in console logs');
+    return null;
   }
-});
+
+  try {
+    transporter = createTransporter();
+    
+    // Verify transporter configuration with timeout
+    const verifyPromise = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Email service verification timeout'));
+      }, 10000); // 10 second timeout
+
+      transporter.verify((error, success) => {
+        clearTimeout(timeout);
+        if (error) {
+          reject(error);
+        } else {
+          resolve(success);
+        }
+      });
+    });
+
+    verifyPromise
+      .then(() => {
+        console.log('✅ Email service is ready to send emails');
+      })
+      .catch((error) => {
+        console.error('❌ Email service configuration error:', error.message);
+        console.warn('📧 Email functionality will be simulated in console logs');
+        transporter = null;
+      });
+
+    return transporter;
+  } catch (error) {
+    console.error('❌ Failed to initialize email service:', error.message);
+    console.warn('📧 Email functionality will be simulated in console logs');
+    return null;
+  }
+};
+
+// Initialize the service
+initializeEmailService();
 
 export const sendOTP = async (identifier, otp, type = 'email') => {
   try {
     console.log(`📧 Attempting to send OTP to ${identifier} (type: ${type})`);
     
     if (type === 'email') {
+      // If no transporter available, simulate email sending
+      if (!transporter) {
+        console.log('📧 [EMAIL SIMULATION] Sending OTP email to:', identifier);
+        console.log('📧 [EMAIL SIMULATION] OTP Code:', otp);
+        console.log('📧 [EMAIL SIMULATION] Subject: AutoTraderHub - Email Verification Code');
+        
+        return {
+          success: true,
+          messageId: `simulated_email_${Date.now()}`,
+          message: 'OTP email sent successfully (simulated)',
+          simulated: true
+        };
+      }
+
       const mailOptions = {
         from: {
           name: 'AutoTraderHub',
-          address: 'pnrstatuscf@gmail.com'
+          address: process.env.EMAIL_USER
         },
         to: identifier,
         subject: 'AutoTraderHub - Email Verification Code',
@@ -115,10 +183,24 @@ export const sendPasswordResetOTP = async (identifier, otp) => {
   try {
     console.log(`🔐 Attempting to send password reset OTP to ${identifier}`);
     
+    // If no transporter available, simulate email sending
+    if (!transporter) {
+      console.log('🔐 [EMAIL SIMULATION] Sending password reset OTP email to:', identifier);
+      console.log('🔐 [EMAIL SIMULATION] OTP Code:', otp);
+      console.log('🔐 [EMAIL SIMULATION] Subject: AutoTraderHub - Password Reset Code');
+      
+      return {
+        success: true,
+        messageId: `simulated_reset_${Date.now()}`,
+        message: 'Password reset OTP email sent successfully (simulated)',
+        simulated: true
+      };
+    }
+    
     const mailOptions = {
       from: {
         name: 'AutoTraderHub Security',
-        address: 'pnrstatuscf@gmail.com'
+        address: process.env.EMAIL_USER
       },
       to: identifier,
       subject: 'AutoTraderHub - Password Reset Code',
