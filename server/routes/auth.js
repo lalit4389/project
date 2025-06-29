@@ -116,7 +116,49 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
+// VERIFY OTP FOR PASSWORD RESET
+router.post('/verify-otp-reset', async (req, res) => {
+  try {
+    const { identifier, otp } = req.body;
 
+    if (!identifier || !otp) {
+      return res.status(400).json({ error: 'Identifier and OTP are required' });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // Find a matching and unexpired OTP
+    const otpRecord = await db.getAsync(
+      'SELECT id FROM otps WHERE identifier = ? AND otp = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+      [identifier, otp, now]
+    );
+
+    if (!otpRecord) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    // Generate a reset token
+    const resetToken = crypto.randomUUID();
+    const tokenExpiresAt = Math.floor(Date.now() / 1000) + (15 * 60); // 15 minutes from now
+
+    // Store the reset token
+    await db.runAsync(
+      'INSERT INTO password_reset_tokens (identifier, token, expires_at, created_at) VALUES (?, ?, ?, ?)',
+      [identifier, resetToken, tokenExpiresAt, Math.floor(Date.now() / 1000)]
+    );
+
+    // Delete the OTP record to prevent reuse
+    await db.runAsync('DELETE FROM otps WHERE id = ?', [otpRecord.id]);
+
+    res.json({ 
+      message: 'OTP verified successfully',
+      resetToken: resetToken
+    });
+  } catch (error) {
+    console.error('Verify OTP for reset error:', error);
+    res.status(500).json({ error: 'OTP verification failed' });
+  }
+});
 
 // LOGIN
 router.post('/login', async (req, res) => {
@@ -162,25 +204,25 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// RESET PASSWORD - Verify OTP and Set New Password
+// RESET PASSWORD - Verify Reset Token and Set New Password
 router.post('/reset-password', async (req, res) => {
   try {
-    const { identifier, otp, newPassword } = req.body;
+    const { resetToken, newPassword } = req.body;
 
-    if (!identifier || !otp || !newPassword) {
-      return res.status(400).json({ error: 'Identifier, OTP, and new password are required' });
+    if (!resetToken || !newPassword) {
+      return res.status(400).json({ error: 'Reset token and new password are required' });
     }
 
     const now = Math.floor(Date.now() / 1000);
 
-    // Find a matching and unexpired OTP
-    const otpRecord = await db.getAsync(
-      'SELECT id, identifier FROM otps WHERE identifier = ? AND otp = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
-      [identifier, otp, now]
+    // Find a matching and unexpired reset token
+    const tokenRecord = await db.getAsync(
+      'SELECT id, identifier FROM password_reset_tokens WHERE token = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+      [resetToken, now]
     );
 
-    if (!otpRecord) {
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    if (!tokenRecord) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
     // Hash the new password
@@ -189,11 +231,11 @@ router.post('/reset-password', async (req, res) => {
     // Update the user's password
     await db.runAsync(
       'UPDATE users SET password = ? WHERE email = ? OR mobileNumber = ?',
-      [hashedPassword, otpRecord.identifier, otpRecord.identifier]
+      [hashedPassword, tokenRecord.identifier, tokenRecord.identifier]
     );
 
-    // Delete the OTP record to prevent reuse
-    await db.runAsync('DELETE FROM otps WHERE id = ?', [otpRecord.id]);
+    // Delete the reset token to prevent reuse
+    await db.runAsync('DELETE FROM password_reset_tokens WHERE id = ?', [tokenRecord.id]);
 
     res.json({ message: 'Password reset successfully' });
   } catch (error) {

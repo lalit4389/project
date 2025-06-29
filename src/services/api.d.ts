@@ -6,5 +6,6 @@ export const authAPI: {
   getProfile: () => Promise<any>; // Replace 'any' with a more specific return type if you have one
   forgotPassword: (data: { identifier: string }) => Promise<any>; // Replace 'any' with a more specific return type
   verifyOtp: (data: { identifier: string; otp: string }) => Promise<any>; // Replace 'any' with a more specific return type
-  resetPassword: (data: { identifier: string; otp: string; newPassword: string }) => Promise<any>; // Replace 'any' with a more specific return type
+  verifyOtpForReset: (data: { identifier: string; otp: string }) => Promise<any>; // Replace 'any' with a more specific return type
+  resetPassword: (data: { resetToken: string; newPassword: string }) => Promise<any>; // Replace 'any' with a more specific return type
 };

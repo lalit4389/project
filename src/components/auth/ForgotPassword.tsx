@@ -18,7 +18,7 @@ interface ForgotForm {
 export default function ForgotPassword() {
   const [step, setStep] = useState<FormStep>(1);
   const [identifier, setIdentifier] = useState('');
-  const [verifiedOtp, setVerifiedOtp] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [canResendOtp, setCanResendOtp] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
@@ -100,9 +100,9 @@ export default function ForgotPassword() {
           setIsLoading(false);
           return;
         }
-        const verifyResponse = await authAPI.verifyOtp({ identifier, otp: data.otp });
+        const verifyResponse = await authAPI.verifyOtpForReset({ identifier, otp: data.otp });
         if (verifyResponse.data.message === 'OTP verified successfully') {
-          setVerifiedOtp(data.otp);
+          setResetToken(verifyResponse.data.resetToken);
           toast.success('OTP verified successfully');
           setStep(3);
         }
@@ -118,22 +118,17 @@ export default function ForgotPassword() {
           return;
         }
         // Validate required fields
-        if (!identifier || !verifiedOtp || !data.password) {
-          console.error('Missing required fields:', { identifier, otp: verifiedOtp, password: data.password });
+        if (!resetToken || !data.password) {
+          console.error('Missing required fields:', { resetToken, password: data.password });
           toast.error('Missing required fields for password reset');
           return;
         }
 
         try {
-          console.log('Attempting password reset with:', {
-            identifier,
-            otp: verifiedOtp,
-            newPassword: data.password
-          });
+          console.log('Attempting password reset with reset token');
 
           const response = await authAPI.resetPassword({
-            identifier,
-            otp: verifiedOtp,
+            resetToken,
             newPassword: data.password
           });
 
