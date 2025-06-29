@@ -49,12 +49,10 @@ export const initDatabase = async () => {
     await db.runAsync(`
       CREATE TABLE IF NOT EXISTS password_reset_tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
+        identifier TEXT NOT NULL,
         token TEXT NOT NULL,
         expires_at INTEGER NOT NULL, -- Unix timestamp
-        used BOOLEAN DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
+        created_at INTEGER NOT NULL
       )
     `);
 

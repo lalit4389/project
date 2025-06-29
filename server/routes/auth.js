@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { db } from '../database/init.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { sendOTP, sendPasswordResetOTP } from '../services/emailService.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -53,10 +54,12 @@ router.post('/register', async (req, res) => {
 
     const otpType = email ? 'email' : 'mobile';
 
-    if (email) {
-      // TODO: Add code here to send OTP via email
-    } else if (mobileNumber) {
-      // TODO: Add code here to send OTP via SMS using a service like Twilio
+    // Send OTP
+    try {
+      await sendOTP(identifier, otp, otpType);
+    } catch (emailError) {
+      console.error('Failed to send OTP:', emailError);
+      // Continue with registration even if email fails
     }
 
     // Store OTP in the database
@@ -264,25 +267,31 @@ router.post('/forgot-password', async (req, res) => {
       [identifier, identifier]
     );
 
-    // Do NOT reveal if the user exists for security reasons
-    if (!user) {
-      console.log(`Forgot password attempt for unknown identifier: ${identifier}`);
-      return res.json({ message: 'If a matching account is found, an OTP has been sent.' });
+    // Always return success for security reasons, but only send OTP if user exists
+    if (user) {
+      // Generate a 6-digit OTP
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = Math.floor(Date.now() / 1000) + (10 * 60); // 10 minutes from now
+
+      const otpType = user.email === identifier ? 'email' : 'mobile';
+
+      // Send OTP
+      try {
+        await sendPasswordResetOTP(identifier, otp);
+        console.log(`✅ Password reset OTP sent to ${identifier}: ${otp}`);
+      } catch (emailError) {
+        console.error('Failed to send password reset OTP:', emailError);
+        return res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
+      }
+
+      // Store OTP in the database
+      await db.runAsync(
+        'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
+        [identifier, otpType, otp, expiresAt, Math.floor(Date.now() / 1000)]
+      );
+    } else {
+      console.log(`❌ Password reset attempt for unknown identifier: ${identifier}`);
     }
-
-    // Generate a 6-digit OTP
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const expiresAt = Math.floor(Date.now() / 1000) + (10 * 60); // 10 minutes from now
-
-    const otpType = user.email === identifier ? 'email' : 'mobile';
-
-    // Store OTP in the database
-    await db.runAsync(
-      'INSERT INTO otps (identifier, type, otp, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
-      [identifier, otpType, otp, expiresAt, Math.floor(Date.now() / 1000)]
-    );
-
-    // TODO: Add code here to send OTP via email (if otpType is 'email') or SMS (if otpType is 'mobile')
 
     res.json({ message: 'If a matching account is found, an OTP has been sent.' });
   } catch (error) {
