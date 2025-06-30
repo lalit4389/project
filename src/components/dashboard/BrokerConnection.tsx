@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { 
   Link, Shield, CheckCircle, AlertCircle, Settings, Zap, 
   ExternalLink, Copy, RefreshCw, Activity, TrendingUp,
-  Wifi, WifiOff, TestTube, Eye, EyeOff, Plus, Key
+  Wifi, WifiOff, TestTube, Eye, EyeOff, Plus, Key, Edit3
 } from 'lucide-react';
 import { brokerAPI } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -24,6 +24,7 @@ interface BrokerConnection {
   created_at: string;
   last_sync: string;
   webhook_url: string;
+  user_id_broker?: string;
 }
 
 const BrokerConnection: React.FC = () => {
@@ -38,6 +39,8 @@ const BrokerConnection: React.FC = () => {
   const [showConnectionForm, setShowConnectionForm] = useState(false);
   const [selectedBrokerForConnection, setSelectedBrokerForConnection] = useState<string>('');
   const [authenticatingConnection, setAuthenticatingConnection] = useState<number | null>(null);
+  const [editingConnection, setEditingConnection] = useState<BrokerConnection | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
   
   const { register, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm<BrokerConnectionForm>();
   const selectedBroker = watch('brokerName');
@@ -113,6 +116,39 @@ const BrokerConnection: React.FC = () => {
     }
   };
 
+  const onEditSubmit = async (data: BrokerConnectionForm) => {
+    if (!editingConnection) return;
+    
+    setIsSubmitting(true);
+    try {
+      console.log('Updating broker connection:', data);
+      const response = await brokerAPI.connect({
+        ...data,
+        brokerName: editingConnection.broker_name
+      });
+      
+      if (response.data.requiresAuth && response.data.loginUrl) {
+        // Show authentication step for Zerodha
+        setAuthenticationStep({
+          connectionId: response.data.connectionId,
+          loginUrl: response.data.loginUrl
+        });
+        toast.success('Credentials updated! Please complete authentication.');
+      } else {
+        toast.success('Broker connection updated successfully!');
+        setShowEditForm(false);
+        setEditingConnection(null);
+        reset();
+        fetchConnections();
+      }
+    } catch (error: any) {
+      console.error('Broker update error:', error);
+      toast.error(error.response?.data?.error || 'Failed to update broker connection');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleConnectClick = (brokerId: string) => {
     // Check if already connected
     const existingConnection = connections.find(c => c.broker_name.toLowerCase() === brokerId);
@@ -128,6 +164,24 @@ const BrokerConnection: React.FC = () => {
     setValue('apiSecret', '');
     setValue('userId', '');
     setShowConnectionForm(true);
+  };
+
+  const handleEditConnection = async (connection: BrokerConnection) => {
+    try {
+      // Fetch connection details
+      const response = await brokerAPI.getConnection(connection.id);
+      const connectionDetails = response.data.connection;
+      
+      setEditingConnection(connection);
+      setValue('brokerName', connection.broker_name);
+      setValue('apiKey', ''); // Don't pre-fill for security
+      setValue('apiSecret', ''); // Don't pre-fill for security
+      setValue('userId', connectionDetails.user_id_broker || '');
+      setShowEditForm(true);
+    } catch (error: any) {
+      console.error('Failed to fetch connection details:', error);
+      toast.error('Failed to load connection details');
+    }
   };
 
   const handleZerodhaAuth = (connectionId: number, loginUrl: string) => {
@@ -438,12 +492,13 @@ const BrokerConnection: React.FC = () => {
                     )}
 
                     <motion.button 
+                      onClick={() => handleEditConnection(connection)}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       className="w-full bg-olive-600 text-white py-2 rounded-lg hover:bg-olive-700 transition-colors flex items-center justify-center space-x-2 text-sm"
                     >
-                      <Settings className="w-4 h-4" />
-                      <span>Settings</span>
+                      <Edit3 className="w-4 h-4" />
+                      <span>Edit Settings</span>
                     </motion.button>
                     
                     <motion.button
@@ -742,6 +797,137 @@ const BrokerConnection: React.FC = () => {
                     </div>
                   </motion.div>
                 )}
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Connection Form */}
+      <AnimatePresence>
+        {showEditForm && editingConnection && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: -20 }}
+              className="bg-dark-800 rounded-2xl p-6 max-w-md w-full border border-olive-500/20 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white flex items-center">
+                  <Edit3 className="w-6 h-6 mr-2 text-olive-400" />
+                  Edit {editingConnection.broker_name.charAt(0).toUpperCase() + editingConnection.broker_name.slice(1)} Settings
+                </h2>
+                <motion.button
+                  onClick={() => {
+                    setShowEditForm(false);
+                    setEditingConnection(null);
+                    reset();
+                  }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="text-olive-400 hover:text-olive-300 text-xl"
+                >
+                  ✕
+                </motion.button>
+              </div>
+
+              <div className="bg-yellow-800/20 border border-yellow-500/30 rounded-lg p-4 mb-6">
+                <div className="flex items-center space-x-2 mb-2">
+                  <AlertCircle className="w-4 h-4 text-yellow-400" />
+                  <span className="text-yellow-300 text-sm font-medium">Security Notice</span>
+                </div>
+                <p className="text-yellow-200/70 text-xs">
+                  For security reasons, existing API credentials are not displayed. Enter new credentials to update your connection.
+                </p>
+              </div>
+              
+              <form onSubmit={handleSubmit(onEditSubmit)} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-olive-200 mb-2">
+                    API Key
+                  </label>
+                  <input
+                    {...register('apiKey', { required: 'API Key is required' })}
+                    type="text"
+                    className="w-full px-4 py-3 bg-dark-800/50 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent backdrop-blur-sm"
+                    placeholder="Enter new API key"
+                  />
+                  {errors.apiKey && (
+                    <p className="mt-1 text-sm text-red-400">{errors.apiKey.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-olive-200 mb-2">
+                    API Secret
+                  </label>
+                  <div className="relative">
+                    <input
+                      {...register('apiSecret', { required: 'API Secret is required' })}
+                      type={showApiSecret ? 'text' : 'password'}
+                      className="w-full px-4 py-3 pr-12 bg-dark-800/50 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent backdrop-blur-sm"
+                      placeholder="Enter new API secret"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiSecret(!showApiSecret)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-olive-400/50 hover:text-olive-300/70 transition-colors"
+                    >
+                      {showApiSecret ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {errors.apiSecret && (
+                    <p className="mt-1 text-sm text-red-400">{errors.apiSecret.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-olive-200 mb-2">
+                    User ID
+                  </label>
+                  <input
+                    {...register('userId', { required: 'User ID is required' })}
+                    type="text"
+                    className="w-full px-4 py-3 bg-dark-800/50 border border-olive-500/20 rounded-xl text-white placeholder-olive-300/50 focus:ring-2 focus:ring-olive-500 focus:border-transparent backdrop-blur-sm"
+                    placeholder="Enter your user ID"
+                  />
+                  {errors.userId && (
+                    <p className="mt-1 text-sm text-red-400">{errors.userId.message}</p>
+                  )}
+                </div>
+
+                <div className="flex space-x-4">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 bg-gradient-to-r from-olive-600 to-olive-700 text-white py-3 rounded-xl font-medium hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span>{isSubmitting ? 'Updating...' : 'Update Settings'}</span>
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      setShowEditForm(false);
+                      setEditingConnection(null);
+                      reset();
+                    }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="px-6 py-3 bg-dark-700 text-olive-200 rounded-xl font-medium hover:bg-dark-600 transition-colors"
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
               </form>
             </motion.div>
           </motion.div>
