@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { 
   Link, Shield, CheckCircle, AlertCircle, Settings, Zap, 
   ExternalLink, Copy, RefreshCw, Activity, TrendingUp,
-  Wifi, WifiOff, TestTube, Eye, EyeOff, Plus
+  Wifi, WifiOff, TestTube, Eye, EyeOff, Plus, Key
 } from 'lucide-react';
 import { brokerAPI } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -37,6 +37,7 @@ const BrokerConnection: React.FC = () => {
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
   const [showConnectionForm, setShowConnectionForm] = useState(false);
   const [selectedBrokerForConnection, setSelectedBrokerForConnection] = useState<string>('');
+  const [authenticatingConnection, setAuthenticatingConnection] = useState<number | null>(null);
   
   const { register, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm<BrokerConnectionForm>();
   const selectedBroker = watch('brokerName');
@@ -129,36 +130,66 @@ const BrokerConnection: React.FC = () => {
     setShowConnectionForm(true);
   };
 
-  const handleZerodhaAuth = () => {
-    if (authenticationStep) {
-      // Open Zerodha login in new window
-      const authWindow = window.open(
-        authenticationStep.loginUrl,
-        'zerodha-auth',
-        'width=600,height=700,scrollbars=yes,resizable=yes'
-      );
+  const handleZerodhaAuth = (connectionId: number, loginUrl: string) => {
+    setAuthenticatingConnection(connectionId);
+    
+    // Open Zerodha login in new window
+    const authWindow = window.open(
+      loginUrl,
+      'zerodha-auth',
+      'width=600,height=700,scrollbars=yes,resizable=yes'
+    );
 
-      if (authWindow) {
-        // Check if window is closed every second
-        const checkClosed = setInterval(() => {
-          if (authWindow.closed) {
-            clearInterval(checkClosed);
-            // Refresh connections to see if auth was completed
-            setTimeout(() => {
-              fetchConnections();
-              setAuthenticationStep(null);
-            }, 2000);
-          }
-        }, 1000);
+    if (authWindow) {
+      // Check if window is closed every second
+      const checkClosed = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(checkClosed);
+          // Refresh connections to see if auth was completed
+          setTimeout(() => {
+            fetchConnections();
+            setAuthenticationStep(null);
+            setAuthenticatingConnection(null);
+          }, 2000);
+        }
+      }, 1000);
 
-        // Auto-close check after 5 minutes
-        setTimeout(() => {
-          if (!authWindow.closed) {
-            authWindow.close();
-            clearInterval(checkClosed);
-          }
-        }, 300000);
+      // Auto-close check after 5 minutes
+      setTimeout(() => {
+        if (!authWindow.closed) {
+          authWindow.close();
+          clearInterval(checkClosed);
+          setAuthenticatingConnection(null);
+        }
+      }, 300000);
+    } else {
+      setAuthenticatingConnection(null);
+      toast.error('Failed to open authentication window. Please check your popup blocker.');
+    }
+  };
+
+  const initiateZerodhaAuth = async (connectionId: number) => {
+    try {
+      setAuthenticatingConnection(connectionId);
+      
+      // Get the connection details to generate auth URL
+      const connection = connections.find(c => c.id === connectionId);
+      if (!connection) {
+        throw new Error('Connection not found');
       }
+
+      // For now, we'll use a mock auth URL. In production, you'd get this from your backend
+      const baseUrl = window.location.origin;
+      const redirectUrl = `${baseUrl}/api/broker/auth/zerodha/callback?connection_id=${connectionId}`;
+      
+      // This should come from your backend API that generates the proper Zerodha login URL
+      const loginUrl = `https://kite.zerodha.com/connect/login?api_key=YOUR_API_KEY&v=3&redirect_url=${encodeURIComponent(redirectUrl)}`;
+      
+      handleZerodhaAuth(connectionId, loginUrl);
+    } catch (error: any) {
+      console.error('Failed to initiate Zerodha auth:', error);
+      toast.error('Failed to start authentication process');
+      setAuthenticatingConnection(null);
     }
   };
 
@@ -284,6 +315,7 @@ const BrokerConnection: React.FC = () => {
             {connections.map((connection, index) => {
               const broker = brokers.find(b => b.id === connection.broker_name.toLowerCase());
               const isAuthenticated = connection.is_authenticated;
+              const needsAuth = broker?.authRequired && !isAuthenticated;
               
               return (
                 <motion.div
@@ -304,14 +336,51 @@ const BrokerConnection: React.FC = () => {
                           <Wifi className="w-4 h-4 text-olive-400" />
                           <span className="text-olive-300 text-sm">Connected & Authenticated</span>
                         </>
+                      ) : needsAuth ? (
+                        <>
+                          <AlertCircle className="w-4 h-4 text-yellow-400" />
+                          <span className="text-yellow-300 text-sm">Authentication Required</span>
+                        </>
                       ) : (
                         <>
-                          <WifiOff className="w-4 h-4 text-yellow-400" />
-                          <span className="text-yellow-300 text-sm">Connected (Auth Required)</span>
+                          <Wifi className="w-4 h-4 text-olive-400" />
+                          <span className="text-olive-300 text-sm">Connected</span>
                         </>
                       )}
                     </div>
                   </div>
+
+                  {/* Authentication Required Notice */}
+                  {needsAuth && (
+                    <div className="bg-yellow-800/20 border border-yellow-500/30 rounded-lg p-3 mb-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Key className="w-4 h-4 text-yellow-400" />
+                        <span className="text-yellow-300 text-sm font-medium">Authentication Required</span>
+                      </div>
+                      <p className="text-yellow-200/70 text-xs mb-3">
+                        Complete the authentication process to enable automated trading.
+                      </p>
+                      <motion.button
+                        onClick={() => initiateZerodhaAuth(connection.id)}
+                        disabled={authenticatingConnection === connection.id}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="w-full bg-gradient-to-r from-yellow-600 to-yellow-700 text-white py-2 px-3 rounded-lg hover:from-yellow-700 hover:to-yellow-800 transition-all flex items-center justify-center space-x-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {authenticatingConnection === connection.id ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Authenticating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink className="w-4 h-4" />
+                            <span>Authenticate Now</span>
+                          </>
+                        )}
+                      </motion.button>
+                    </div>
+                  )}
 
                   {/* Webhook URL */}
                   {connection.webhook_url && (
@@ -342,29 +411,31 @@ const BrokerConnection: React.FC = () => {
 
                   {/* Action Buttons */}
                   <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <motion.button 
-                        onClick={() => syncPositions(connection.id)}
-                        disabled={syncingConnection === connection.id}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="bg-olive-600 text-white py-2 px-3 rounded-lg hover:bg-olive-700 transition-colors flex items-center justify-center space-x-1 text-sm disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-3 h-3 ${syncingConnection === connection.id ? 'animate-spin' : ''}`} />
-                        <span>Sync</span>
-                      </motion.button>
+                    {isAuthenticated && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <motion.button 
+                          onClick={() => syncPositions(connection.id)}
+                          disabled={syncingConnection === connection.id}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="bg-olive-600 text-white py-2 px-3 rounded-lg hover:bg-olive-700 transition-colors flex items-center justify-center space-x-1 text-sm disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${syncingConnection === connection.id ? 'animate-spin' : ''}`} />
+                          <span>Sync</span>
+                        </motion.button>
 
-                      <motion.button
-                        onClick={() => testConnection(connection.id)}
-                        disabled={testingConnection === connection.id}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="bg-blue-600 text-white py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1 text-sm disabled:opacity-50"
-                      >
-                        <TestTube className={`w-3 h-3 ${testingConnection === connection.id ? 'animate-pulse' : ''}`} />
-                        <span>Test</span>
-                      </motion.button>
-                    </div>
+                        <motion.button
+                          onClick={() => testConnection(connection.id)}
+                          disabled={testingConnection === connection.id}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="bg-blue-600 text-white py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1 text-sm disabled:opacity-50"
+                        >
+                          <TestTube className={`w-3 h-3 ${testingConnection === connection.id ? 'animate-pulse' : ''}`} />
+                          <span>Test</span>
+                        </motion.button>
+                      </div>
+                    )}
 
                     <motion.button 
                       whileHover={{ scale: 1.02 }}
@@ -505,7 +576,7 @@ const BrokerConnection: React.FC = () => {
               
               <div className="space-y-4">
                 <motion.button
-                  onClick={handleZerodhaAuth}
+                  onClick={() => handleZerodhaAuth(authenticationStep.connectionId, authenticationStep.loginUrl)}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className="w-full bg-gradient-to-r from-olive-600 to-olive-700 text-white py-3 rounded-xl font-medium flex items-center justify-center space-x-2"
